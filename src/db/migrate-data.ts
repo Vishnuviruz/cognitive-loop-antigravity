@@ -7,7 +7,7 @@ import * as dotenv from 'dotenv';
 import path from 'path';
 
 // Load env variables
-dotenv.config();
+dotenv.config({ path: '.env.local' });
 
 async function migrate() {
   console.log('🔄 Starting data migration from local SQLite to Turso...');
