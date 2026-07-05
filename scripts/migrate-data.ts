@@ -2,7 +2,7 @@ import { drizzle as localDrizzle } from 'drizzle-orm/better-sqlite3';
 import { drizzle as remoteDrizzle } from 'drizzle-orm/libsql';
 import Database from 'better-sqlite3';
 import { createClient } from '@libsql/client';
-import * as schema from './schema';
+import * as schema from '../src/db/schema';
 import * as dotenv from 'dotenv';
 import path from 'path';
 
