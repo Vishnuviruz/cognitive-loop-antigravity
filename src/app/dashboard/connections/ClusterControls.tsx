@@ -42,11 +42,11 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
   };
 
   return (
-    <div className="flex items-center space-x-3">
+    <div className="flex flex-wrap items-center gap-2">
       {/* Cluster Toggle Button */}
       <button
         onClick={toggleCluster}
-        className={`h-[38px] px-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+        className={`h-[34px] px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
           isClustered 
             ? 'bg-indigo-650 text-white border-indigo-600 shadow-md shadow-indigo-600/10'
             : 'bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:bg-zinc-800/40 hover:text-zinc-200'
@@ -63,7 +63,7 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
       </button>
 
       {/* Pagination Controls */}
-      <div className="flex items-center space-x-1 bg-zinc-900/30 border border-zinc-800/60 rounded-xl p-1 h-[38px]">
+      <div className="flex items-center space-x-1 bg-zinc-900/30 border border-zinc-800/60 rounded-xl p-1 h-[34px]">
         <button
           onClick={handlePrev}
           disabled={currentPage <= 1}
@@ -71,7 +71,7 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
         >
           ‹
         </button>
-        <span className="text-xs text-zinc-400 px-2 min-w-[45px] text-center select-none font-medium">
+        <span className="text-xs text-zinc-400 px-2 min-w-[40px] text-center select-none font-medium">
           {currentPage} / {totalPages}
         </span>
         <button
@@ -88,10 +88,10 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
         <button
           type="button"
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="h-[38px] bg-zinc-900/60 border border-zinc-800/80 text-zinc-300 text-xs rounded-xl px-4 pr-8 focus:outline-none transition-all cursor-pointer flex items-center justify-between min-w-[120px]"
+          className="h-[34px] bg-zinc-900/60 border border-zinc-800/80 text-zinc-300 text-xs rounded-xl px-3 pr-7 focus:outline-none transition-all cursor-pointer flex items-center justify-between min-w-[90px]"
         >
           <span>{pageSize} per page</span>
-          <svg className="h-3 w-3 fill-none stroke-current text-zinc-400 ml-2" viewBox="0 0 24 24">
+          <svg className="h-3 w-3 fill-none stroke-current text-zinc-400 ml-1" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
@@ -102,7 +102,7 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
             <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
             
             {/* Popover options list */}
-            <div className="absolute right-0 top-full mt-1.5 z-50 w-full min-w-[120px] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl py-1 backdrop-blur-md overflow-hidden">
+            <div className="absolute right-0 top-full mt-1.5 z-50 w-full min-w-[100px] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl py-1 backdrop-blur-md overflow-hidden">
               {pageSizeOptions.map((opt) => (
                 <button
                   key={opt}

@@ -127,13 +127,13 @@ export default function Sidebar({ user }: SidebarProps) {
 
   return (
     <>
-      {/* Desktop Sidebar (Left side fixed) */}
-      <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 glass-panel border-r border-zinc-800/50 p-4">
+      {/* Desktop Sidebar (Left side fixed) - lg and above only */}
+      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 glass-panel border-r border-zinc-800/50 p-4">
         <NavContent />
       </aside>
 
-      {/* Mobile Top Bar */}
-      <div className="md:hidden flex items-center justify-between glass-panel border-b border-zinc-800/50 px-4 py-3 sticky top-0 z-40 w-full">
+      {/* Mobile/Tablet Top Bar — visible below lg breakpoint */}
+      <div className="lg:hidden flex items-center justify-between glass-panel border-b border-zinc-800/50 px-4 py-3 sticky top-0 z-40 w-full">
         <div className="flex items-center gap-2">
           <BrainCircuit className="w-6 h-6 text-indigo-400" />
           <span className="font-bold text-white text-md tracking-wide">Cognitive Loop</span>
@@ -146,16 +146,25 @@ export default function Sidebar({ user }: SidebarProps) {
         </button>
       </div>
 
-      {/* Mobile Sidebar overlay */}
+      {/* Mobile/Tablet Sidebar overlay — visible below lg breakpoint */}
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-30 flex">
+        <div className="lg:hidden fixed inset-0 z-50 flex">
           {/* Backdrop blur */}
           <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
             onClick={() => setMobileOpen(false)}
           />
           <aside className="relative flex-1 flex flex-col max-w-xs w-full bg-[#08070d] border-r border-zinc-800 p-6">
-            <NavContent />
+            <button 
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 focus:outline-none"
+              aria-label="Close sidebar"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <div className="mt-4 flex-1 flex flex-col">
+              <NavContent />
+            </div>
           </aside>
         </div>
       )}

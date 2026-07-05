@@ -227,44 +227,52 @@ export default function ActionsPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1.5 text-zinc-500 text-xs">
-          <Filter className="w-3.5 h-3.5" />
-          <span className="font-semibold uppercase tracking-wider text-[10px]">Status:</span>
+      <div className="space-y-4">
+        {/* Status Filter */}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-zinc-500 text-xs px-1">
+            <Filter className="w-3.5 h-3.5" />
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Status filter:</span>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+            {['active', 'completed', 'dismissed', 'all'].map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilterStatus(status)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
+                  filterStatus === status
+                    ? 'bg-indigo-600/25 border-indigo-500/40 text-indigo-300 shadow-sm'
+                    : 'bg-zinc-950/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
         </div>
-        {['active', 'completed', 'dismissed', 'all'].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilterStatus(status)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer capitalize ${
-              filterStatus === status
-                ? 'bg-indigo-600/20 border-indigo-500/30 text-indigo-300'
-                : 'border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
-            }`}
-          >
-            {status}
-          </button>
-        ))}
 
-        <div className="w-px h-5 bg-zinc-800 mx-1" />
-
-        <div className="flex items-center gap-1.5 text-zinc-500 text-xs">
-          <BarChart3 className="w-3.5 h-3.5" />
-          <span className="font-semibold uppercase tracking-wider text-[10px]">Priority:</span>
+        {/* Priority Filter */}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-zinc-500 text-xs px-1">
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Priority filter:</span>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+            {['all', 'high', 'medium', 'low'].map((priority) => (
+              <button
+                key={priority}
+                onClick={() => setFilterPriority(priority)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
+                  filterPriority === priority
+                    ? 'bg-indigo-600/25 border-indigo-500/40 text-indigo-300 shadow-sm'
+                    : 'bg-zinc-950/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
+                }`}
+              >
+                {priority}
+              </button>
+            ))}
+          </div>
         </div>
-        {['all', 'high', 'medium', 'low'].map((priority) => (
-          <button
-            key={priority}
-            onClick={() => setFilterPriority(priority)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer capitalize ${
-              filterPriority === priority
-                ? 'bg-indigo-600/20 border-indigo-500/30 text-indigo-300'
-                : 'border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
-            }`}
-          >
-            {priority}
-          </button>
-        ))}
       </div>
 
       {/* Action Items List */}
