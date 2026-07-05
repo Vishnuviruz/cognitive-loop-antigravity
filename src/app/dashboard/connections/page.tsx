@@ -47,7 +47,7 @@ export default function ConnectionsPage() {
   // Custom states for Sprint 1
   const [isClustered, setIsClustered] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5); // default to 5 to match ClusterControls
   const [searchQuery, setSearchQuery] = useState('');
   
   // Modal states
@@ -316,9 +316,12 @@ export default function ConnectionsPage() {
 
               <ClusterControls
                 totalItems={totalItems}
-                onPageChange={(page, size) => {
-                  setCurrentPage(page);
+                currentPage={currentPage}
+                pageSize={pageSize}
+                onPageChange={(page) => setCurrentPage(page)}
+                onPageSizeChange={(size) => {
                   setPageSize(size);
+                  setCurrentPage(1);
                 }}
                 onClusterToggle={(enabled) => {
                   setIsClustered(enabled);

@@ -2,38 +2,38 @@ import React, { useState } from 'react';
 
 interface ClusterControlsProps {
   totalItems: number;
+  currentPage: number;
+  pageSize: number;
   pageSizeOptions?: number[];
-  onPageChange: (page: number, pageSize: number) => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onClusterToggle: (enabled: boolean) => void;
 }
 
 export const ClusterControls: React.FC<ClusterControlsProps> = ({
   totalItems,
+  currentPage,
+  pageSize,
   pageSizeOptions = [1, 2, 5, 10, 20],
   onPageChange,
+  onPageSizeChange,
   onClusterToggle,
 }) => {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5); // default to 5 per page (index 2)
   const [isClustered, setIsClustered] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
 
   const handlePrev = () => {
-    const newPage = Math.max(1, page - 1);
-    setPage(newPage);
-    onPageChange(newPage, pageSize);
+    const newPage = Math.max(1, currentPage - 1);
+    onPageChange(newPage);
   };
   const handleNext = () => {
-    const newPage = Math.min(totalPages, page + 1);
-    setPage(newPage);
-    onPageChange(newPage, pageSize);
+    const newPage = Math.min(totalPages, currentPage + 1);
+    onPageChange(newPage);
   };
   const handleSizeSelect = (size: number) => {
-    setPageSize(size);
-    setPage(1);
-    onPageChange(1, size);
+    onPageSizeChange(size);
   };
   const toggleCluster = () => {
     const newVal = !isClustered;
@@ -59,17 +59,17 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
       <div className="flex items-center space-x-1 bg-zinc-900/30 border border-zinc-800/60 rounded-xl p-1 h-[38px]">
         <button
           onClick={handlePrev}
-          disabled={page <= 1}
+          disabled={currentPage <= 1}
           className="h-7 w-7 flex items-center justify-center rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:bg-zinc-800/60 text-zinc-400 disabled:opacity-20 disabled:hover:bg-zinc-900/60 transition-all cursor-pointer font-bold text-xs"
         >
           ‹
         </button>
         <span className="text-xs text-zinc-400 px-2 min-w-[45px] text-center select-none font-medium">
-          {page} / {totalPages}
+          {currentPage} / {totalPages}
         </span>
         <button
           onClick={handleNext}
-          disabled={page >= totalPages}
+          disabled={currentPage >= totalPages}
           className="h-7 w-7 flex items-center justify-center rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:bg-zinc-800/60 text-zinc-400 disabled:opacity-20 disabled:hover:bg-zinc-900/60 transition-all cursor-pointer font-bold text-xs"
         >
           ›
@@ -95,7 +95,7 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
             <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
             
             {/* Popover options list */}
-            <div className="absolute right-0 top-full mt-1 z-50 w-full min-w-[120px] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl py-1 backdrop-blur-md overflow-hidden">
+            <div className="absolute right-0 top-full mt-1.5 z-50 w-full min-w-[120px] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl py-1 backdrop-blur-md overflow-hidden">
               {pageSizeOptions.map((opt) => (
                 <button
                   key={opt}
