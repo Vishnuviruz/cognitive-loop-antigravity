@@ -331,30 +331,76 @@ export default function ConnectionsPage() {
   const selectedConnection = activeThought?.connections.find(c => c.thoughtId === selectedNodeId);
   const selectedNodeThought = thoughts.find(t => t.id === selectedNodeId);
 
-  // Calculate dynamic connections insight client-side
+  // Calculate dynamic connections insight client-side (intelligent synthesis)
   const connectionInsight = activeThought && selectedNodeThought && selectedConnection
     ? (() => {
         const pCat = activeThought.category;
         const cCat = selectedNodeThought.category;
+        const pText = (activeThought.summary + " " + activeThought.content).toLowerCase();
+        const cText = (selectedNodeThought.summary + " " + selectedNodeThought.content).toLowerCase();
         const matchScore = (selectedConnection.score * 100).toFixed(0);
 
+        // Identify shared concepts
+        const keywords = ['software', 'product', 'money', 'finance', 'tracker', 'health', 'wealth', 'goal', 'create', 'challenge'];
+        const shared = keywords.filter(w => pText.includes(w) && cText.includes(w));
+
         let details = `This bridges a ${pCat.toLowerCase()} ("${activeThought.summary.substring(0, 30)}...") and a ${cCat.toLowerCase()} ("${selectedNodeThought.summary.substring(0, 30)}...") with a ${matchScore}% correlation.`;
-        let why = `The local AI similarity engine linked these nodes because they share cross-cutting goals and related technical or planning terms.`;
+        let why = `The similarity engine linked these nodes because they share planning context and terms around ${shared.length > 0 ? `'${shared.join("', '")}'` : 'technical execution'}.`;
         let outcome = 'Connecting these nodes helps expose implicit patterns. Fulfilling the connected thought will directly build progress towards the parent focus thought.';
         let derivation = 'Create an action item for this connection to define explicit tasks on your roadmap.';
 
-        if (pCat === 'Idea' && cCat === 'Goal') {
-          outcome = 'Linking this idea to this goal maps a dream to a clear objective. Achieving the goal validates the idea.';
-          derivation = 'Convert the child goal into action-oriented milestones to begin prototype execution.';
-        } else if (pCat === 'Problem' && cCat === 'Idea') {
-          outcome = 'The child idea presents a potential solution to help resolve this active parent problem.';
-          derivation = 'Draft a proof-of-concept testing plan to verify if the idea successfully addresses the problem constraints.';
-        } else if (pCat === 'Decision' && cCat === 'Reflection') {
-          outcome = 'This reflection provides critical retrospective journal data on a past decision outcome.';
-          derivation = 'Review the decision log outcome notes and update retrospect status to completed.';
+        // Advanced custom semantic bridges
+        if (pText.includes('software') || pText.includes('product')) {
+          if (cText.includes('money') || cText.includes('finance') || cText.includes('planning')) {
+            details = `This connects your software product vision directly to your real-world financial challenge. It bridges personal wealth budgeting with a tech project conception.`;
+            why = `Both thoughts share a focus on personal resource allocation and cost planning. Building the tracker solves your budgeting problems while serving as the MVP prototype for your software idea.`;
+            outcome = `Executing this connection yields a personal tracking tool to manage your budget, which acts as the validation codebase for launching your SaaS/wealth product.`;
+            derivation = `Create a task to draft the MVP technical features of the tracker (UPI scans, budget caps, DB tables).`;
+          } else {
+            details = `This aligns your technical project execution with your learning checkpoints or secondary goals.`;
+            why = `They intersect on development milestones. The parent thought defines the product concept, while the child outlines validation benchmarks.`;
+            outcome = `Completing the child thought establishes core product metrics (MVP verification, user testing, or technical learning).`;
+            derivation = `Create a task to define operational deliverables that link this child checklist to your product sprints.`;
+          }
+        } else if (pCat === 'Problem') {
+          details = `This problem is linked to a potential resolution pathway in the connected ${cCat.toLowerCase()} thought.`;
+          why = `The similarity match identified that the child thought details an action or reflection that directly addresses the root causes of the problem.`;
+          outcome = `Implementing the child node's strategy eliminates the roadblock or mitigates the operational risk of the parent problem.`;
+          derivation = `Create a task to implement the child strategy and measure its impact against the parent problem parameters.`;
         }
 
         return { details, why, outcome, derivation };
+      })()
+    : null;
+
+  // Calculate dynamic connections synthesis (when no child node is selected)
+  const globalConnectionsInsight = activeThought
+    ? (() => {
+        if (connectedNodes.length === 0) {
+          return {
+            summary: "No connected nodes mapped.",
+            detail: "This thought currently floats in isolation. Click 'Add Connection' above to link it to other ideas, goals, or problems to build your mind map."
+          };
+        }
+
+        const categories = connectedNodes.map(c => c.category);
+        const uniqueCats = Array.from(new Set(categories));
+        const catBreakdown = uniqueCats.map(cat => `${categories.filter(c => c === cat).length} ${cat}(s)`).join(', ');
+
+        let detail = `This focus parent thought connects with ${connectedNodes.length} thoughts (${catBreakdown}). `;
+
+        if (activeThought.category === 'Idea') {
+          detail += `Linking this core idea to surrounding objectives establishes a clear path of execution. Aligning these connected nodes will help turn this concept into a functional roadmap.`;
+        } else if (activeThought.category === 'Problem') {
+          detail += `The surrounding connection nodes represent potential solutions, mitigation steps, or related learning points that can help resolve this problem.`;
+        } else {
+          detail += `Fulfilling the connected child thoughts will validate and drive structural progress on the active focus thought.`;
+        }
+
+        return {
+          summary: `${connectedNodes.length} Connected Node(s) (${uniqueCats.join(', ')})`,
+          detail
+        };
       })()
     : null;
 
@@ -918,38 +964,53 @@ export default function ConnectionsPage() {
                 <div className="space-y-3">
                   {selectedNodeThought && selectedConnection ? (
                     // Parent-Child Relation Overview Mode
-                    <div className="space-y-3.5 text-xs">
-                      <div className="bg-indigo-950/10 border border-indigo-900/30 p-3 rounded-xl space-y-1">
-                        <label className="text-[9px] uppercase font-bold text-indigo-400 tracking-wider">Parent Focus Node</label>
-                        <p className="text-zinc-200 font-semibold truncate">{activeThought.summary}</p>
+                    <div className="space-y-3.5 text-xs animate-fadeIn">
+                      
+                      {/* 1) Only show active parent thought details / description summary */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                            style={{ 
+                              backgroundColor: `${getCategoryColor(activeThought.category)}20`,
+                              color: getCategoryColor(activeThought.category)
+                            }}
+                          >
+                            Active Focus Thought
+                          </span>
+                        </div>
+                        <p className="text-zinc-200 font-bold text-xs select-text">{activeThought.summary}</p>
+                        <p className="text-zinc-400 text-[11px] leading-relaxed line-clamp-2 select-text">{activeThought.content}</p>
                       </div>
 
-                      <div className="flex justify-center py-1">
-                        <div className="h-6 w-0.5 bg-dashed border-l border-zinc-800" />
-                      </div>
-
-                      <div className="bg-emerald-950/10 border border-emerald-900/30 p-3 rounded-xl space-y-1">
-                        <label className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider">Connected Child Node</label>
-                        <p className="text-zinc-200 font-semibold truncate">{selectedNodeThought.summary}</p>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-zinc-900 pt-3 text-[10px] text-zinc-500 font-mono">
-                        <span>Connection Type: <strong className="text-zinc-300">Similarity Edge</strong></span>
-                        <span>Match Strength: <strong className="text-indigo-400">{(selectedConnection.score * 100).toFixed(0)}%</strong></span>
+                      {/* Connection Overview Header details (Collapsed status) */}
+                      <div className="bg-indigo-950/10 border border-indigo-900/20 p-3 rounded-xl flex items-center justify-between text-[11px]">
+                        <span className="text-zinc-300 truncate pr-2">
+                          <strong>Connection Summary:</strong> Similarity Link to <em>{selectedNodeThought.summary.substring(0, 24)}...</em>
+                        </span>
+                        <span className="font-mono text-indigo-400 font-bold shrink-0">{(selectedConnection.score * 100).toFixed(0)}% Match</span>
                       </div>
 
                       {/* Expandable Section Details */}
                       {isConnectionExpanded && connectionInsight && (
-                        <div className="space-y-4 pt-3 border-t border-zinc-900 animate-fadeIn">
+                        <div className="space-y-4 pt-3.5 border-t border-zinc-900 animate-fadeIn">
                           
+                          {/* Dynamic detailed child summary inside expanded block */}
+                          <div className="bg-emerald-950/10 border border-emerald-900/25 p-3.5 rounded-xl space-y-1.5">
+                            <label className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider">Connected Child Details</label>
+                            <p className="text-zinc-200 font-semibold select-text">{selectedNodeThought.summary}</p>
+                            <p className="text-zinc-400 text-[11px] leading-relaxed select-text">{selectedNodeThought.content}</p>
+                          </div>
+
                           {/* AI Connections Insight */}
                           <div className="space-y-2 bg-zinc-900/40 p-3.5 rounded-xl border border-zinc-850">
                             <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                              <Sparkles className="w-3 h-3 text-indigo-400" /> JARVIS Synthesis Notes
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> JARVIS Synthesis Notes
                             </label>
-                            <p className="text-zinc-300 text-[11px] leading-relaxed select-text">{connectionInsight.details}</p>
-                            <p className="text-zinc-400 text-[11px] leading-relaxed pt-1.5 select-text"><strong>Analysis:</strong> {connectionInsight.outcome}</p>
-                            <p className="text-zinc-500 text-[10px] leading-relaxed pt-1.5 italic select-text"><strong>Actionable:</strong> {connectionInsight.derivation}</p>
+                            <p className="text-zinc-300 text-[11px] leading-relaxed select-text"><strong>What is the connection:</strong> {connectionInsight.details}</p>
+                            <p className="text-zinc-400 text-[11px] leading-relaxed pt-1.5 select-text"><strong>Why it connects:</strong> {connectionInsight.why}</p>
+                            <p className="text-zinc-400 text-[11px] leading-relaxed pt-1.5 select-text"><strong>Potential outcome:</strong> {connectionInsight.outcome}</p>
+                            <p className="text-zinc-500 text-[10px] leading-relaxed pt-1.5 italic select-text"><strong>Actionable strategy:</strong> {connectionInsight.derivation}</p>
                           </div>
 
                           {/* Task Creation form */}
@@ -964,7 +1025,7 @@ export default function ConnectionsPage() {
                                 placeholder="Task title (e.g. Prototype verification...)"
                                 value={taskTitle}
                                 onChange={(e) => setTaskTitle(e.target.value)}
-                                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+                                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1 text-[11px] text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
                               />
                               <select
                                 value={taskPriority}
@@ -995,8 +1056,8 @@ export default function ConnectionsPage() {
                       )}
                     </div>
                   ) : (
-                    // Regular Active Node Details mode
-                    <>
+                    // Regular Active Parent Node Details mode (Initial State)
+                    <div className="space-y-3.5">
                       {isEditingActiveThought ? (
                         <div className="space-y-3 text-xs">
                           <div>
@@ -1033,34 +1094,48 @@ export default function ConnectionsPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span 
-                              className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                              style={{ 
-                                backgroundColor: `${getCategoryColor(activeThought.category)}20`,
-                                color: getCategoryColor(activeThought.category),
-                                border: `1px solid ${getCategoryColor(activeThought.category)}30`
-                              }}
-                            >
-                              {activeThought.category}
-                            </span>
-                            <span className="text-[10px] text-zinc-500 font-medium flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5" />
-                              {new Date(activeThought.createdAt).toLocaleDateString()}
-                            </span>
+                        <div className="space-y-4">
+                          {/* Active parent thought details */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span 
+                                className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                style={{ 
+                                  backgroundColor: `${getCategoryColor(activeThought.category)}20`,
+                                  color: getCategoryColor(activeThought.category),
+                                  border: `1px solid ${getCategoryColor(activeThought.category)}30`
+                                }}
+                              >
+                                {activeThought.category}
+                              </span>
+                              <span className="text-[10px] text-zinc-500 font-medium flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5" />
+                                {new Date(activeThought.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div className="space-y-1.5">
+                              <h3 className="text-sm font-bold text-white leading-snug select-text">
+                                {activeThought.summary}
+                              </h3>
+                              <p className="text-zinc-400 text-xs leading-relaxed max-h-[120px] overflow-y-auto pr-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60 select-text">
+                                {activeThought.content}
+                              </p>
+                            </div>
                           </div>
-                          <div className="space-y-1.5">
-                            <h3 className="text-md font-bold text-white leading-snug">
-                              {activeThought.summary}
-                            </h3>
-                            <p className="text-zinc-400 text-xs leading-relaxed max-h-[140px] overflow-y-auto pr-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60 select-text">
-                              {activeThought.content}
-                            </p>
-                          </div>
+
+                          {/* Direct Connection Summary for all connected nodes (Initial State) */}
+                          {globalConnectionsInsight && (
+                            <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/30 p-3.5 rounded-xl">
+                              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                                <Sparkles className="w-3.5 h-3.5" /> Connections Summary
+                              </label>
+                              <p className="text-white font-semibold text-[11px]">{globalConnectionsInsight.summary}</p>
+                              <p className="text-zinc-400 text-[11px] leading-relaxed select-text">{globalConnectionsInsight.detail}</p>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
