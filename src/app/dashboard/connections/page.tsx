@@ -79,8 +79,13 @@ export default function ConnectionsPage() {
   const [editSummary, setEditSummary] = useState('');
   const [editContent, setEditContent] = useState('');
   
+  // Collapsible display states
+  const [parentExpanded, setParentExpanded] = useState(false);
+  const [childExpanded, setChildExpanded] = useState(false);
+  
   const [editingRelationshipId, setEditingRelationshipId] = useState<string | null>(null);
   const [editRelScore, setEditRelScore] = useState(0.8);
+
 
   useEffect(() => {
     fetchThoughts();
@@ -252,14 +257,21 @@ export default function ConnectionsPage() {
   // Find active thought record
   const activeThought = thoughts.find((t) => t.id === activeThoughtId);
 
-  // Sync edit fields when active thought changes
+  // Sync edit fields and reset collapse states when active thought changes
   useEffect(() => {
     if (activeThought) {
       setEditCategory(activeThought.category);
       setEditSummary(activeThought.summary);
       setEditContent(activeThought.content);
     }
+    setParentExpanded(false);
+    setChildExpanded(false);
   }, [activeThoughtId, thoughts]);
+
+  // Reset child card expansion when selected child changes
+  useEffect(() => {
+    setChildExpanded(false);
+  }, [selectedNodeId]);
 
   // Connected nodes mapping
   const connectedNodes = activeThought
@@ -898,239 +910,281 @@ export default function ConnectionsPage() {
                 </div>
 
                 {/* Parent Focus Node display */}
-                <div className="space-y-3.5">
-                  
-                  {/* Parent metadata */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span 
-                        className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                        style={{ 
-                          backgroundColor: `${getCategoryColor(activeThought.category)}20`,
-                          color: getCategoryColor(activeThought.category),
-                          border: `1px solid ${getCategoryColor(activeThought.category)}30`
-                        }}
-                      >
-                        Parent Focus Node
-                      </span>
-                      <span className="text-[10px] text-zinc-500 font-medium">
-                        Active Thought
-                      </span>
-                    </div>
+                {/* Parent Focus Node block */}
+                 <div className="space-y-3.5">
+                   
+                   {/* Parent metadata with collapsible toggle */}
+                   <div className="bg-zinc-900/30 border border-zinc-900 p-3 rounded-xl space-y-2">
+                     <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-2">
+                         <span 
+                           className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                           style={{ 
+                             backgroundColor: `${getCategoryColor(activeThought.category)}20`,
+                             color: getCategoryColor(activeThought.category),
+                             border: `1px solid ${getCategoryColor(activeThought.category)}30`
+                           }}
+                         >
+                           Parent Focus Node
+                         </span>
+                         <span className="text-[10px] text-zinc-500 font-medium">
+                           Active Thought
+                         </span>
+                       </div>
+                       
+                       {!isEditingActiveThought && (
+                         <button
+                           onClick={() => setParentExpanded(!parentExpanded)}
+                           className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                           title={parentExpanded ? "Collapse Description" : "Expand Description"}
+                         >
+                           {parentExpanded ? (
+                             <ChevronUp className="w-4 h-4" />
+                           ) : (
+                             <ChevronDown className="w-4 h-4" />
+                           )}
+                         </button>
+                       )}
+                     </div>
 
-                    {isEditingActiveThought ? (
-                      <div className="space-y-3 text-xs">
-                        <div>
-                          <label className="text-zinc-500 font-bold block mb-1">Category</label>
-                          <select
-                            value={editCategory}
-                            onChange={(e) => setEditCategory(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white"
-                          >
-                            {['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'].map(cat => (
-                              <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                          </select>
-                        </div>
+                     {isEditingActiveThought ? (
+                       <div className="space-y-3 text-xs">
+                         <div>
+                           <label className="text-zinc-500 font-bold block mb-1">Category</label>
+                           <select
+                             value={editCategory}
+                             onChange={(e) => setEditCategory(e.target.value)}
+                             className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white"
+                           >
+                             {['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'].map(cat => (
+                               <option key={cat} value={cat}>{cat}</option>
+                             ))}
+                           </select>
+                         </div>
 
-                        <div>
-                          <label className="text-zinc-500 font-bold block mb-1">Summary</label>
-                          <input
-                            type="text"
-                            value={editSummary}
-                            onChange={(e) => setEditSummary(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500"
-                          />
-                        </div>
+                         <div>
+                           <label className="text-zinc-500 font-bold block mb-1">Summary</label>
+                           <input
+                             type="text"
+                             value={editSummary}
+                             onChange={(e) => setEditSummary(e.target.value)}
+                             className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500"
+                           />
+                         </div>
 
-                        <div>
-                          <label className="text-zinc-500 font-bold block mb-1">Content Details</label>
-                          <textarea
-                            value={editContent}
-                            onChange={(e) => setEditContent(e.target.value)}
-                            rows={4}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500 resize-none"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <h4 className="text-sm font-bold text-white leading-snug select-text">
-                          {activeThought.summary}
-                        </h4>
-                        <p className="text-zinc-400 text-xs leading-relaxed max-h-[110px] overflow-y-auto pr-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60 select-text">
-                          {activeThought.content}
-                        </p>
-                      </>
-                    )}
-                  </div>
+                         <div>
+                           <label className="text-zinc-500 font-bold block mb-1">Content Details</label>
+                           <textarea
+                             value={editContent}
+                             onChange={(e) => setEditContent(e.target.value)}
+                             rows={4}
+                             className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                           />
+                         </div>
+                       </div>
+                     ) : (
+                       <div className="space-y-1">
+                         <h4 className="text-xs font-bold text-white leading-snug select-text">
+                           {activeThought.summary}
+                         </h4>
+                         {parentExpanded && (
+                           <p className="text-zinc-400 text-[11px] leading-relaxed max-h-[120px] overflow-y-auto pr-1 bg-black/30 p-2.5 rounded-lg border border-zinc-850 select-text animate-fadeIn mt-2">
+                             {activeThought.content}
+                           </p>
+                         )}
+                       </div>
+                     )}
+                   </div>
 
-                  <div className="border-t border-zinc-900 my-4" />                  {/* Dynamic States inside card */}
-                  {!selectedNodeThought ? (
-                    // STATE A: Consolidated Overview (No child selected)
-                    <div className="space-y-4 text-xs animate-fadeIn">
-                      
-                      {/* Connected children list */}
-                      <div className="space-y-2">
-                        <label className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider block">
-                          Connected Child Thoughts ({connectedNodes.length})
-                        </label>
-                        <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                          {connectedNodes.map((node) => (
-                            <div
-                              key={node.thoughtId}
-                              onClick={() => handleNodeClick(node.thoughtId)}
-                              className="p-2.5 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-850 hover:border-zinc-800 rounded-xl flex items-center justify-between cursor-pointer transition-colors"
-                            >
-                              <span className="truncate text-zinc-300 font-medium pr-2">
-                                [{node.fullThought?.category}] {node.fullThought?.summary}
-                              </span>
-                              <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1.5 py-0.5 rounded border border-indigo-900/20 shrink-0">
-                                {(node.score * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                   <div className="border-t border-zinc-900" />
 
-                      {/* Consolidated Connection Summary */}
-                      <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/20 p-4 rounded-xl min-h-[100px] flex flex-col justify-center relative">
-                        <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Consolidated Connection Summary
-                        </label>
-                        
-                        {loadingConsolidated ? (
-                          <div className="flex items-center justify-center py-6 gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-indigo-450" />
-                            <span className="text-zinc-500 text-[10px]">Analyzing connection patterns...</span>
-                          </div>
-                        ) : consolidatedAnalysis ? (
-                          <>
-                            <p className="text-zinc-200 font-semibold text-[11px] leading-relaxed select-text">
-                              {consolidatedAnalysis.header}
-                            </p>
-                            <p className="text-zinc-400 text-[11px] leading-relaxed pt-1.5 select-text">
-                              {consolidatedAnalysis.detail}
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-zinc-500 text-[11px]">No connection analysis available.</p>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    // STATE B: Single Selected Child Details
-                    <div className="space-y-4 text-xs animate-fadeIn">
-                      
-                      {/* Back button and Selected Child box */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">
-                            Selected Child Node
-                          </label>
-                          <button
-                            onClick={() => setSelectedNodeId(null)}
-                            className="text-[10px] text-zinc-500 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            ‹ Back to Consolidated Summary
-                          </button>
-                        </div>
+                   {/* Dynamic States inside card */}
+                   {!selectedNodeThought ? (
+                     // STATE A: Consolidated Overview (No child selected)
+                     <div className="space-y-4 text-xs animate-fadeIn">
+                       
+                       {/* Connected children list */}
+                       <div className="space-y-2">
+                         <label className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider block">
+                           Connected Child Thoughts ({connectedNodes.length})
+                         </label>
+                         <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+                           {connectedNodes.map((node) => (
+                             <div
+                               key={node.thoughtId}
+                               onClick={() => handleNodeClick(node.thoughtId)}
+                               className="p-2 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-850 hover:border-zinc-800 rounded-xl flex items-center justify-between cursor-pointer transition-colors"
+                             >
+                               <span className="truncate text-zinc-300 font-semibold pr-2">
+                                 [{node.fullThought?.category}] {node.fullThought?.summary}
+                               </span>
+                               <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1.5 py-0.5 rounded border border-indigo-900/20 shrink-0">
+                                 {(node.score * 100).toFixed(0)}%
+                               </span>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
 
-                        <div className="bg-emerald-950/10 border border-emerald-900/25 p-3.5 rounded-xl space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-emerald-950/30 text-emerald-400 border border-emerald-900/30">
-                              {selectedNodeThought.category}
-                            </span>
-                            {selectedConnection && (
-                              <span className="text-[10px] text-zinc-400 font-mono">
-                                Match: <strong className="text-indigo-400 font-bold">{(selectedConnection.score * 100).toFixed(0)}%</strong>
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-zinc-250 font-semibold select-text">{selectedNodeThought.summary}</p>
-                          <p className="text-zinc-400 text-[11px] leading-relaxed select-text">{selectedNodeThought.content}</p>
-                        </div>
-                      </div>
+                       {/* Consolidated Connection Summary (Decent Viewable Fixed Height with scroll) */}
+                       <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/20 p-4 rounded-xl min-h-[120px] max-h-[220px] overflow-y-auto flex flex-col justify-start relative">
+                         <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-1 sticky top-0 bg-zinc-950/20 py-0.5 backdrop-blur-sm z-10">
+                           <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Consolidated Connection Summary
+                         </label>
+                         
+                         {loadingConsolidated ? (
+                           <div className="flex-1 flex items-center justify-center py-6 gap-2">
+                             <Loader2 className="w-4 h-4 animate-spin text-indigo-450" />
+                             <span className="text-zinc-500 text-[10px]">Analyzing connection patterns...</span>
+                           </div>
+                         ) : consolidatedAnalysis ? (
+                           <div className="space-y-2 select-text">
+                             <p className="text-zinc-200 font-semibold text-[11px] leading-relaxed">
+                               {consolidatedAnalysis.header}
+                             </p>
+                             <p className="text-zinc-400 text-[11px] leading-relaxed">
+                               {consolidatedAnalysis.detail}
+                             </p>
+                           </div>
+                         ) : (
+                           <p className="text-zinc-500 text-[11px]">No connection analysis available.</p>
+                         )}
+                       </div>
+                     </div>
+                   ) : (
+                     // STATE B: Single Selected Child Details
+                     <div className="space-y-4 text-xs animate-fadeIn">
+                       
+                       {/* Back button and Selected Child box */}
+                       <div className="space-y-2">
+                         <div className="flex justify-between items-center">
+                           <label className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">
+                             Selected Child Node
+                           </label>
+                           <button
+                             onClick={() => setSelectedNodeId(null)}
+                             className="text-[10px] text-indigo-450 hover:text-indigo-400 flex items-center gap-1 cursor-pointer transition-colors"
+                           >
+                             ‹ Back to Consolidated Summary
+                           </button>
+                         </div>
 
-                      {/* Detailed Connection Summary Breakdown */}
-                      <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850 min-h-[140px] flex flex-col justify-center relative">
-                        <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Detailed Connection Analysis
-                        </label>
-                        
-                        {loadingDetailed ? (
-                          <div className="flex items-center justify-center py-10 gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-indigo-450" />
-                            <span className="text-zinc-500 text-[10px]">JARVIS is analyzing thought linkages...</span>
-                          </div>
-                        ) : detailedAnalysis ? (
-                          <div className="space-y-2.5 bg-black/10 p-3 rounded-lg border border-zinc-900/45">
-                            <p className="text-zinc-250 text-[11px] leading-relaxed select-text">
-                              <strong>What is the connection?</strong> {detailedAnalysis.connection}
-                            </p>
-                            <p className="text-zinc-300 text-[11px] leading-relaxed select-text">
-                              <strong>How?</strong> {detailedAnalysis.how}
-                            </p>
-                            <p className="text-zinc-300 text-[11px] leading-relaxed select-text">
-                              <strong>Why?</strong> {detailedAnalysis.why}
-                            </p>
-                            <p className="text-zinc-350 text-[11px] leading-relaxed select-text">
-                              <strong>What is the potential outcome?</strong> {detailedAnalysis.outcome}
-                            </p>
-                            <p className="text-indigo-300 text-[11px] leading-relaxed pt-1.5 border-t border-zinc-900 select-text">
-                              <strong>Action Plan:</strong> {detailedAnalysis.actionPlan}
-                            </p>
-                          </div>
-                        ) : (
-                          <p className="text-zinc-500 text-[11px]">No detailed analysis available.</p>
-                        )}
-                      </div>
+                         <div className="bg-emerald-950/10 border border-emerald-900/25 p-3 rounded-xl space-y-1.5">
+                           <div className="flex items-center justify-between">
+                             <div className="flex items-center gap-2">
+                               <span className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-emerald-950/30 text-emerald-400 border border-emerald-900/30">
+                                 {selectedNodeThought.category}
+                               </span>
+                               {selectedConnection && (
+                                 <span className="text-[10px] text-zinc-400 font-mono">
+                                   Match: <strong className="text-indigo-400 font-bold">{(selectedConnection.score * 100).toFixed(0)}%</strong>
+                                 </span>
+                               )}
+                             </div>
+                             
+                             <button
+                               onClick={() => setChildExpanded(!childExpanded)}
+                               className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                               title={childExpanded ? "Collapse Description" : "Expand Description"}
+                             >
+                               {childExpanded ? (
+                                 <ChevronUp className="w-3.5 h-3.5" />
+                               ) : (
+                                 <ChevronDown className="w-3.5 h-3.5" />
+                               )}
+                             </button>
+                           </div>
+                           
+                           <p className="text-zinc-200 font-semibold select-text">{selectedNodeThought.summary}</p>
+                           {childExpanded && (
+                             <p className="text-zinc-400 text-[11px] leading-relaxed select-text max-h-[120px] overflow-y-auto pr-1 bg-black/30 p-2.5 rounded-lg border border-zinc-850 mt-1 animate-fadeIn">
+                               {selectedNodeThought.content}
+                             </p>
+                           )}
+                         </div>
+                       </div>
 
-                      {/* Task planner derived from this connection */}
-                      <div className="space-y-2 bg-indigo-950/10 border border-indigo-900/20 p-3.5 rounded-xl">
-                        <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                          <Briefcase className="w-3.5 h-3.5" /> Derive Task & Sync to Action Center
-                        </label>
-                        
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Task title (e.g. Map database schema...)"
-                            value={taskTitle}
-                            onChange={(e) => setTaskTitle(e.target.value)}
-                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
-                          />
-                          <select
-                            value={taskPriority}
-                            onChange={(e) => setTaskPriority(e.target.value as any)}
-                            className="bg-zinc-900 border border-zinc-800 rounded-lg px-1 py-1.5 text-xs text-zinc-400 focus:outline-none"
-                          >
-                            <option value="high">High</option>
-                            <option value="medium">Medium</option>
-                            <option value="low">Low</option>
-                          </select>
-                          <button
-                            onClick={() => handleCreateTask(selectedNodeThought.id)}
-                            disabled={!taskTitle.trim()}
-                            className="px-3 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40"
-                          >
-                            Add
-                          </button>
-                        </div>
+                       {/* Detailed Connection Summary Breakdown (Decent Viewable Fixed Height with scroll) */}
+                       <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850 min-h-[140px] max-h-[260px] overflow-y-auto flex flex-col justify-start relative">
+                         <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-1 sticky top-0 bg-zinc-950/20 py-0.5 backdrop-blur-sm z-10">
+                           <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Detailed Connection Analysis
+                         </label>
+                         
+                         {loadingDetailed ? (
+                           <div className="flex-1 flex items-center justify-center py-10 gap-2">
+                             <Loader2 className="w-4 h-4 animate-spin text-indigo-450" />
+                             <span className="text-zinc-500 text-[10px]">JARVIS is analyzing thought linkages...</span>
+                           </div>
+                         ) : detailedAnalysis ? (
+                           <div className="space-y-2.5 bg-black/10 p-3 rounded-lg border border-zinc-900/45 select-text">
+                             <p className="text-zinc-250 text-[11px] leading-relaxed">
+                               <strong>What is the connection?</strong> {detailedAnalysis.connection}
+                             </p>
+                             <p className="text-zinc-300 text-[11px] leading-relaxed">
+                               <strong>How?</strong> {detailedAnalysis.how}
+                             </p>
+                             <p className="text-zinc-300 text-[11px] leading-relaxed">
+                               <strong>Why?</strong> {detailedAnalysis.why}
+                             </p>
+                             <p className="text-zinc-350 text-[11px] leading-relaxed">
+                               <strong>What is the potential outcome?</strong> {detailedAnalysis.outcome}
+                             </p>
+                             <p className="text-indigo-300 text-[11px] leading-relaxed pt-1.5 border-t border-zinc-900">
+                               <strong>Action Plan:</strong> {detailedAnalysis.actionPlan}
+                             </p>
+                           </div>
+                         ) : (
+                           <p className="text-zinc-500 text-[11px]">No detailed analysis available.</p>
+                         )}
+                       </div>
 
-                        {taskSuccessMessage && (
-                          <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-1">
-                            <Check className="w-3.5 h-3.5" /> {taskSuccessMessage}
-                          </div>
-                        )}
-                      </div>
-                      
-                    </div>
-                  )}
+                     </div>
+                   )}
 
-                </div>
-              </div>
-            )}
+                   <div className="border-t border-zinc-900 pt-2" />
+
+                   {/* Derive Task & Sync to Action Center Form (ALWAYS present by default in State A and State B) */}
+                   <div className="space-y-2 bg-indigo-950/10 border border-indigo-900/20 p-3.5 rounded-xl text-xs">
+                     <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                       <Briefcase className="w-3.5 h-3.5" /> Derive Task & Sync to Action Center
+                     </label>
+                     
+                     <div className="flex gap-2">
+                       <input
+                         type="text"
+                         placeholder={selectedNodeThought ? "Task title for this connection..." : "Task title for this parent focus..."}
+                         value={taskTitle}
+                         onChange={(e) => setTaskTitle(e.target.value)}
+                         className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
+                       />
+                       <select
+                         value={taskPriority}
+                         onChange={(e) => setTaskPriority(e.target.value as any)}
+                         className="bg-zinc-900 border border-zinc-800 rounded-lg px-1 py-1.5 text-xs text-zinc-400 focus:outline-none"
+                       >
+                         <option value="high">High</option>
+                         <option value="medium">Medium</option>
+                         <option value="low">Low</option>
+                       </select>
+                       <button
+                         onClick={() => handleCreateTask(selectedNodeThought ? selectedNodeThought.id : activeThought.id)}
+                         disabled={!taskTitle.trim()}
+                         className="px-3 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40 cursor-pointer"
+                       >
+                         Add
+                       </button>
+                     </div>
+
+                     {taskSuccessMessage && (
+                       <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                         <Check className="w-3.5 h-3.5" /> {taskSuccessMessage}
+                       </div>
+                     )}
+                   </div>
+
+                 </div>
+                 </div>
+               )}
 
           </div>
 
