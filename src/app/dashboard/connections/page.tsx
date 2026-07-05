@@ -101,6 +101,11 @@ export default function ConnectionsPage() {
     fetchThoughts();
   }, []);
 
+  useEffect(() => {
+    setHoveredNodeId(null);
+    setHoveredType(null);
+  }, [selectedNodeId, activeThoughtId]);
+
   const fetchThoughts = async () => {
     setLoading(true);
     try {
@@ -469,6 +474,10 @@ export default function ConnectionsPage() {
                 rectWidth: rect.width,
                 rectHeight: rect.height,
               });
+            }}
+            onMouseLeave={() => {
+              setHoveredNodeId(null);
+              setHoveredType(null);
             }}
             className="lg:col-span-7 glass-panel rounded-2xl p-6 border-zinc-800/80 flex flex-col items-center justify-center relative overflow-hidden select-none bg-zinc-950/20 shadow-xl"
           >
@@ -983,6 +992,10 @@ export default function ConnectionsPage() {
                     rectWidth: rect.width,
                     rectHeight: rect.height,
                   });
+                }}
+                onMouseLeave={() => {
+                  setHoveredNodeId(null);
+                  setHoveredType(null);
                 }}
                 className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md space-y-4 relative"
               >
