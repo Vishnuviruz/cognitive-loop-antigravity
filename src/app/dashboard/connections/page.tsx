@@ -96,6 +96,9 @@ export default function ConnectionsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // Mobile active tab state ('map' | 'details')
+  const [activeTab, setActiveTab] = useState<'map' | 'details'>('map');
+
 
   useEffect(() => {
     fetchThoughts();
@@ -402,6 +405,7 @@ export default function ConnectionsPage() {
   // Handle single node click (selection)
   const handleNodeClick = (thoughtId: string) => {
     setSelectedNodeId(thoughtId);
+    setActiveTab('details'); // Auto-switch tab on mobile when a node is selected
   };
 
   // Handle double click (re-center)
@@ -462,25 +466,52 @@ export default function ConnectionsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* Visual Graph View (Left 7 Columns) */}
-          <div 
-            onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setHoveredNodeCoords({
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-                rectWidth: rect.width,
-                rectHeight: rect.height,
-              });
-            }}
-            onMouseLeave={() => {
-              setHoveredNodeId(null);
-              setHoveredType(null);
-            }}
-            className="lg:col-span-7 glass-panel rounded-2xl p-6 border-zinc-800/80 flex flex-col items-center justify-center relative overflow-hidden select-none bg-zinc-950/20 shadow-xl"
-          >
+        <div className="space-y-6">
+          {/* Mobile Segmented Tab Switcher */}
+          <div className="flex lg:hidden bg-zinc-950/60 p-1 rounded-xl border border-zinc-900 w-full max-w-sm mx-auto select-none">
+            <button
+              onClick={() => setActiveTab('map')}
+              className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                activeTab === 'map'
+                  ? 'bg-indigo-650 text-white shadow-md'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              🗺️ Node Map
+            </button>
+            <button
+              onClick={() => setActiveTab('details')}
+              className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                activeTab === 'details'
+                  ? 'bg-indigo-650 text-white shadow-md'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              🔍 Connection Overview
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* Visual Graph View (Left 7 Columns) */}
+            <div 
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredNodeCoords({
+                  x: e.clientX - rect.left,
+                  y: e.clientY - rect.top,
+                  rectWidth: rect.width,
+                  rectHeight: rect.height,
+                });
+              }}
+              onMouseLeave={() => {
+                setHoveredNodeId(null);
+                setHoveredType(null);
+              }}
+              className={`lg:col-span-7 glass-panel rounded-2xl p-6 border-zinc-800/80 flex flex-col items-center justify-center relative overflow-hidden select-none bg-zinc-950/20 shadow-xl ${
+                activeTab === 'map' ? 'flex animate-fadeIn' : 'hidden lg:flex'
+              }`}
+            >
             <div className="absolute top-0 left-0 w-[150px] h-[150px] rounded-full bg-indigo-500/5 blur-[50px] pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[150px] h-[150px] rounded-full bg-cyan-500/5 blur-[50px] pointer-events-none" />
 
@@ -979,7 +1010,7 @@ export default function ConnectionsPage() {
           </div>
 
           {/* Node Inspector Details (Right 5 Columns) */}
-          <div className="lg:col-span-5">
+          <div className={`lg:col-span-5 ${activeTab === 'details' ? 'block animate-fadeIn' : 'hidden lg:block'}`}>
             
             {/* Connection Overview Card (Unified details layout) */}
             {activeThought && (
@@ -1002,8 +1033,14 @@ export default function ConnectionsPage() {
                 
                 {/* Header operations */}
                 <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
-                  <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
-                    Connection Overview
+                  <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+                    <button
+                      onClick={() => setActiveTab('map')}
+                      className="lg:hidden px-2 py-0.5 border border-zinc-800 hover:bg-zinc-900 text-zinc-550 hover:text-white rounded-lg transition-colors cursor-pointer text-[9px] uppercase tracking-normal"
+                    >
+                      🗺️ Map
+                    </button>
+                    <span>Connection Overview</span>
                   </h3>
 
                   {/* Actions (Only when no child is selected) */}
@@ -1389,6 +1426,7 @@ export default function ConnectionsPage() {
 
           </div>
 
+          </div>
         </div>
       )}
 

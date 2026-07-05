@@ -13,12 +13,13 @@ import {
   Plus,
   Loader2,
   Sparkles,
-  Link as LinkIcon,
   XCircle,
   Filter,
   BarChart3,
   Trash2,
   Play,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 
 interface ActionItem {
@@ -40,6 +41,8 @@ export default function ActionsPage() {
   const [filterStatus, setFilterStatus] = useState<string>('active');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchItems();
@@ -98,7 +101,19 @@ export default function ActionsPage() {
       }
     } catch (err) {
       console.error('Failed to delete action item:', err);
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteTargetId(null);
     }
+  };
+
+  const handleDeleteClick = (id: string) => {
+    setDeleteTargetId(id);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteTargetId) deleteItem(deleteTargetId);
   };
 
   // Filter logic
@@ -318,8 +333,8 @@ export default function ActionsPage() {
                         </span>
                         {/* Delete */}
                         <button
-                          onClick={() => deleteItem(item.id)}
-                          className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-rose-400 transition-all cursor-pointer"
+                          onClick={() => handleDeleteClick(item.id)}
+                          className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-zinc-600 hover:text-rose-400 transition-all cursor-pointer"
                           title="Delete item"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -367,9 +382,9 @@ export default function ActionsPage() {
                       )}
                     </div>
 
-                    {/* Quick Actions */}
+                    {/* Quick Actions — always visible on mobile, hover-reveal on desktop */}
                     {item.status !== 'completed' && item.status !== 'dismissed' && (
-                      <div className="flex items-center gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex flex-wrap items-center gap-2 pt-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         {item.status === 'pending' && (
                           <button
                             onClick={() => updateItem(item.id, { status: 'in_progress' })}
@@ -402,6 +417,45 @@ export default function ActionsPage() {
           })}
         </div>
       )}
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteConfirm && deleteTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-panel max-w-sm w-full rounded-2xl border-zinc-800 p-6 space-y-6 shadow-2xl relative animate-fadeIn">
+            <button
+              onClick={() => { setShowDeleteConfirm(false); setDeleteTargetId(null); }}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 hover:bg-zinc-800/60 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-950/20 text-red-500 border border-red-900/35 rounded-xl shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-md font-bold text-white leading-tight">Delete Task?</h3>
+                <p className="text-xs text-zinc-450 leading-relaxed">
+                  Are you sure you want to delete this action item? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2 text-xs">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteTargetId(null); }}
+                className="px-4 py-2 border border-zinc-800 hover:bg-zinc-900 text-zinc-400 rounded-xl font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-red-500/20 cursor-pointer"
+              >
+                Delete Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
