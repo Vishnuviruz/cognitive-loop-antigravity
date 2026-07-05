@@ -442,10 +442,10 @@ export default function ConnectionsPage() {
               setSelectedSourceId(activeThoughtId || '');
               setShowCreateLinkModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:shadow-indigo-500/20 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-550/20 hover:shadow-indigo-500/30 cursor-pointer border border-indigo-400/20"
           >
             <Plus className="w-4 h-4" /> Add Connection
-            <span className="ml-1.5 text-[9px] bg-indigo-550/40 text-indigo-205 border border-indigo-400/30 px-1.5 py-0.5 rounded font-mono font-bold">
+            <span className="ml-1.5 text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded font-mono font-bold">
               {Math.round(thoughts.reduce((acc, t) => acc + (t.connections?.length || 0), 0) / 2)}
             </span>
           </button>
@@ -471,23 +471,23 @@ export default function ConnectionsPage() {
           <div className="flex lg:hidden bg-zinc-950/60 p-1 rounded-xl border border-zinc-900 w-full max-w-sm mx-auto select-none">
             <button
               onClick={() => setActiveTab('map')}
-              className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === 'map'
-                  ? 'bg-indigo-650 text-white shadow-md'
+                  ? 'bg-indigo-600 text-white shadow-md'
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              🗺️ Node Map
+              <Network className="w-3.5 h-3.5" /> Node Map
             </button>
             <button
               onClick={() => setActiveTab('details')}
-              className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === 'details'
-                  ? 'bg-indigo-650 text-white shadow-md'
+                  ? 'bg-indigo-600 text-white shadow-md'
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              🔍 Connection Overview
+              <Eye className="w-3.5 h-3.5" /> Connection Overview
             </button>
           </div>
 
@@ -615,8 +615,8 @@ export default function ConnectionsPage() {
             </div>
 
             {/* Filter and Control bar */}
-            <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border-b border-zinc-800 pb-4">
-              <div className="relative flex-1 w-full max-w-xs">
+            <div className="w-full bg-zinc-950/40 border border-zinc-900 rounded-2xl p-3.5 mb-6 flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full sm:w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="text"
@@ -626,42 +626,45 @@ export default function ConnectionsPage() {
                     setSearchQuery(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="w-full h-[38px] pl-9 pr-4 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition-all"
+                  className="w-full h-[36px] pl-9 pr-4 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition-all"
                 />
               </div>
 
-              <ClusterControls
-                totalItems={totalItems}
-                currentPage={currentPage}
-                pageSize={pageSize}
-                onPageChange={(page) => setCurrentPage(page)}
-                onPageSizeChange={(size) => {
-                  setPageSize(size);
-                  setCurrentPage(1);
-                }}
-                onClusterToggle={(enabled) => {
-                  setIsClustered(enabled);
-                  setCurrentPage(1);
-                }}
-              />
+              <div className="flex justify-end">
+                <ClusterControls
+                  totalItems={totalItems}
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  onPageChange={(page) => setCurrentPage(page)}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  onClusterToggle={(enabled) => {
+                    setIsClustered(enabled);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
             </div>
 
-            <div className="w-full flex justify-between items-center text-[10px] text-zinc-500 mb-2 px-2">
-              <span className="flex items-center gap-1"><Info className="w-3 h-3 text-indigo-400" /> Click once to select details • Double click to re-center</span>
-              <span className="font-semibold text-zinc-400">{filteredConnectedNodes.length} connections found</span>
+            <div className="w-full flex flex-wrap justify-between items-center gap-1 text-[10px] text-zinc-500 mb-2 px-2">
+              <span className="flex items-center gap-1 min-w-0"><Info className="w-3 h-3 text-indigo-400 shrink-0" /> <span className="hidden sm:inline">Click once to select details • </span>Double click to re-center</span>
+              <span className="font-semibold text-zinc-400 shrink-0">{filteredConnectedNodes.length} connections found</span>
             </div>
 
-            <svg 
-              viewBox={`0 0 ${width} ${height}`} 
-              className="w-full h-auto max-w-[520px]"
-            >
-              {/* Outer Glow filter for nodes */}
-              <defs>
-                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="8" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-              </defs>
+             <div className="w-full overflow-x-auto overflow-y-hidden border border-zinc-900 rounded-2xl bg-zinc-950/20 flex items-center justify-center p-2 scrollbar-thin">
+              <svg 
+                viewBox={`0 0 ${width} ${height}`} 
+                className="w-full h-auto min-w-[500px] sm:min-w-[650px] max-w-full transition-all"
+              >
+                {/* Outer Glow filter for nodes */}
+                <defs>
+                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="8" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
 
               {/* Draw lines and nodes */}
               {activeThought && (
@@ -950,6 +953,7 @@ export default function ConnectionsPage() {
                 </g>
               )}
             </svg>
+            </div>
 
             {/* Floating Rich Tooltip Overlay for Nodes */}
             {hoveredNodeId && hoveredNodeCoords && hoveredType === 'graph' && (
@@ -1036,9 +1040,9 @@ export default function ConnectionsPage() {
                   <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
                     <button
                       onClick={() => setActiveTab('map')}
-                      className="lg:hidden px-2 py-0.5 border border-zinc-800 hover:bg-zinc-900 text-zinc-550 hover:text-white rounded-lg transition-colors cursor-pointer text-[9px] uppercase tracking-normal"
+                      className="lg:hidden flex items-center gap-1 px-2.5 py-1 border border-zinc-800 hover:bg-zinc-900 text-zinc-400 hover:text-white rounded-lg transition-colors cursor-pointer text-[10px] uppercase font-bold"
                     >
-                      🗺️ Map
+                      <Network className="w-3.5 h-3.5" /> Map
                     </button>
                     <span>Connection Overview</span>
                   </h3>
@@ -1339,30 +1343,32 @@ export default function ConnectionsPage() {
                        <Briefcase className="w-3.5 h-3.5" /> Derive Task & Sync to Action Center
                      </label>
                      
-                     <div className="flex gap-2">
+                     <div className="flex flex-col gap-2">
                        <input
                          type="text"
                          placeholder={selectedNodeThought ? "Task title for this connection..." : "Task title for this parent focus..."}
                          value={taskTitle}
                          onChange={(e) => setTaskTitle(e.target.value)}
-                         className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
+                         className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
                        />
-                       <select
-                         value={taskPriority}
-                         onChange={(e) => setTaskPriority(e.target.value as any)}
-                         className="bg-zinc-900 border border-zinc-800 rounded-lg px-1 py-1.5 text-xs text-zinc-400 focus:outline-none"
-                       >
-                         <option value="high">High</option>
-                         <option value="medium">Medium</option>
-                         <option value="low">Low</option>
-                       </select>
-                       <button
-                         onClick={() => handleCreateTask(selectedNodeThought ? selectedNodeThought.id : activeThought.id)}
-                         disabled={!taskTitle.trim()}
-                         className="px-3 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40 cursor-pointer"
-                       >
-                         Add
-                       </button>
+                       <div className="flex gap-2">
+                         <select
+                           value={taskPriority}
+                           onChange={(e) => setTaskPriority(e.target.value as any)}
+                           className="flex-1 bg-zinc-900 border border-zinc-850 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500"
+                         >
+                           <option value="high">🔥 High Priority</option>
+                           <option value="medium">⚡ Medium Priority</option>
+                           <option value="low">💤 Low Priority</option>
+                         </select>
+                         <button
+                           onClick={() => handleCreateTask(selectedNodeThought ? selectedNodeThought.id : activeThought.id)}
+                           disabled={!taskTitle.trim()}
+                           className="px-5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-indigo-500/20"
+                         >
+                           Add Task
+                         </button>
+                       </div>
                      </div>
 
                      {taskSuccessMessage && (

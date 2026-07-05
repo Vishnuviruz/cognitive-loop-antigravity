@@ -353,11 +353,11 @@ export default function DashboardPage() {
     .slice(0, 3);
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
+    <div className="space-y-8 max-w-6xl mx-auto w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white text-glow-indigo">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white text-glow-indigo">
             Thought Capture & Timeline
           </h1>
           <p className="text-zinc-400 text-sm mt-1">
@@ -367,7 +367,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Capture Section */}
-      <div className="glass-panel rounded-2xl p-6 relative overflow-hidden border-zinc-800/80 shadow-xl">
+      <div className="glass-panel rounded-2xl p-4 md:p-6 relative overflow-hidden border-zinc-800/80 shadow-xl">
         <div className="absolute top-0 right-0 w-[200px] h-[200px] rounded-full bg-indigo-500/5 blur-[50px] pointer-events-none" />
         
         <h2 className="text-lg font-semibold text-zinc-200 mb-4 flex items-center gap-2">
@@ -408,12 +408,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <div className="w-full border-t border-zinc-900 mr-4 hidden sm:block" />
-            <div className="shrink-0 mx-auto">
-              <VoiceRecorder onRecordingComplete={handleAudioSubmit} isProcessing={isProcessing} />
-            </div>
-            <div className="w-full border-t border-zinc-900 ml-4 hidden sm:block" />
+          <div className="flex items-center justify-center pt-2">
+            <VoiceRecorder onRecordingComplete={handleAudioSubmit} isProcessing={isProcessing} />
           </div>
         </form>
       </div>
@@ -422,7 +418,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* Recurring Loops Card */}
-        <div className="glass-panel rounded-2xl p-6 lg:col-span-7 flex flex-col justify-between border-zinc-800/80 shadow-md">
+        <div className="glass-panel rounded-2xl p-6 lg:col-span-12 flex flex-col justify-between border-zinc-800/80 shadow-md min-w-0 overflow-hidden">
           <div>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-md font-bold text-zinc-200 flex items-center gap-2">
@@ -469,47 +465,6 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <p className="text-zinc-400 text-xs leading-relaxed">{l.description}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Recent Connections Card */}
-        <div className="glass-panel rounded-2xl p-6 lg:col-span-5 flex flex-col justify-between border-zinc-800/80 shadow-md">
-          <div>
-            <h2 className="text-md font-bold text-zinc-200 mb-4 flex items-center gap-2">
-              <GitMerge className="w-5 h-5 text-cyan-400" /> Recent AI Connections
-            </h2>
-
-            {loadingThoughts ? (
-              <div className="flex flex-col items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-zinc-600 mb-2" />
-                <span className="text-xs text-zinc-500">Retrieving thought map...</span>
-              </div>
-            ) : recentConnections.length === 0 ? (
-              <div className="py-6 px-4 rounded-xl border border-dashed border-zinc-800 text-center">
-                <p className="text-zinc-500 text-xs">
-                  No connections generated. The system links thoughts automatically when you record related ideas.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentConnections.map((c) => (
-                  <div key={c.key} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-950/40 border border-zinc-900/60 text-xs">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-zinc-300 font-medium truncate" title={c.fromSummary}>{c.fromSummary}</p>
-                      <div className="flex items-center gap-1.5 mt-1 text-[10px] text-zinc-500">
-                        <span>Similar to</span>
-                        <ArrowRight className="w-3 h-3 text-zinc-600" />
-                        <span className="truncate max-w-[120px] font-medium text-zinc-400" title={c.toSummary}>{c.toSummary}</span>
-                      </div>
-                    </div>
-                    <div className="shrink-0 flex flex-col items-end">
-                      <span className="font-bold text-indigo-400 font-mono">{(c.score * 100).toFixed(0)}%</span>
-                      <span className="text-[9px] text-zinc-500">match</span>
-                    </div>
                   </div>
                 ))}
               </div>

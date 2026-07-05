@@ -2,8 +2,8 @@ import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import * as schema from './schema';
 
-// Dynamically choose between remote Turso (prod) and local file sqlite (dev)
-const isProduction = process.env.NODE_ENV === 'production' || process.env.TURSO_DATABASE_URL;
+// Only connect to Turso in actual production (Vercel). Local dev always uses sqlite.db.
+const isProduction = process.env.NODE_ENV === 'production';
 
 const client = createClient(
   isProduction
