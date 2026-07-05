@@ -299,88 +299,65 @@ export default function ConnectionsPage() {
   const selectedConnection = activeThought?.connections.find(c => c.thoughtId === selectedNodeId);
   const selectedNodeThought = thoughts.find(t => t.id === selectedNodeId);
 
-  // Consolidated Connection Summary (State A - when no child node is selected)
-  const consolidatedSummary = activeThought
-    ? (() => {
-        if (connectedNodes.length === 0) {
-          return {
-            header: "No connected thoughts mapped.",
-            detail: "This thought currently floats in isolation. Click 'Add Connection' above to link it to other thoughts, goals, or problems to start mapping relationships."
-          };
+  // Live AI synthesis state variables
+  const [consolidatedAnalysis, setConsolidatedAnalysis] = useState<{ header: string; detail: string } | null>(null);
+  const [detailedAnalysis, setDetailedAnalysis] = useState<{ connection: string; how: string; why: string; outcome: string; actionPlan: string } | null>(null);
+  const [loadingConsolidated, setLoadingConsolidated] = useState(false);
+  const [loadingDetailed, setLoadingDetailed] = useState(false);
+
+  // Asynchronous Fetch for State A (Consolidated Connection Summary)
+  useEffect(() => {
+    if (!activeThoughtId) {
+      setConsolidatedAnalysis(null);
+      return;
+    }
+    const fetchConsolidated = async () => {
+      setLoadingConsolidated(true);
+      try {
+        const res = await fetch('/api/relationships/synthesis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parentId: activeThoughtId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setConsolidatedAnalysis(data);
         }
+      } catch (err) {
+        console.error('Error fetching consolidated synthesis:', err);
+      } finally {
+        setLoadingConsolidated(false);
+      }
+    };
+    fetchConsolidated();
+  }, [activeThoughtId, thoughts]);
 
-        const parentText = (activeThought.summary + " " + activeThought.content).toLowerCase();
-        const isFinanceSaaS = parentText.includes('saas') || parentText.includes('software');
-
-        const childTexts = connectedNodes.map(c => (c.summary + " " + c.fullThought?.content).toLowerCase());
-        const hasFinanceChild = childTexts.some(txt => txt.includes('finance') || txt.includes('money') || txt.includes('budget') || txt.includes('apps'));
-
-        if (isFinanceSaaS && hasFinanceChild) {
-          return {
-            header: "You want to create a SaaS product and you address there are issues in managing finance, wealth creation, and tracking tools.",
-            detail: "Why can't we build a product that provides a solution for this? Like an all-in-one app to track, plan, analyze, create, and get personalized advice for finance and wealth management."
-          };
+  // Asynchronous Fetch for State B (Detailed Connection Analysis)
+  useEffect(() => {
+    if (!activeThoughtId || !selectedNodeId) {
+      setDetailedAnalysis(null);
+      return;
+    }
+    const fetchDetailed = async () => {
+      setLoadingDetailed(true);
+      try {
+        const res = await fetch('/api/relationships/synthesis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parentId: activeThoughtId, childId: selectedNodeId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDetailedAnalysis(data);
         }
-
-        // Fallback consolidated text
-        const categories = connectedNodes.map(c => c.category);
-        const uniqueCats = Array.from(new Set(categories));
-        return {
-          header: `Consolidated alignment across your focus parent thought and its ${connectedNodes.length} connected nodes (${uniqueCats.join(', ')}).`,
-          detail: `Synthesizing these concepts exposes overlapping development steps. Fulfilling the child nodes will systematically drive validation and execution progress on your active thought.`
-        };
-      })()
-    : null;
-
-  // Detailed Connection Summary (State B - when a child node is selected)
-  const detailedInsight = activeThought && selectedNodeThought
-    ? (() => {
-        const parentText = (activeThought.summary + " " + activeThought.content).toLowerCase();
-        const childText = (selectedNodeThought.summary + " " + selectedNodeThought.content).toLowerCase();
-
-        // 1. Personal finance management issues
-        if (childText.includes('issue') && (childText.includes('finance') || childText.includes('budget') || childText.includes('0 rupee'))) {
-          return {
-            connection: "A validation anchor representing first-hand personal friction.",
-            how: "It serves as the first user story for your SaaS. You are solving your own budget management issues, creating an immediate test audience of one.",
-            why: "SaaS products find success by solving high-pain problems. Struggling with cash flow validates the demand for automated tracking.",
-            outcome: "You develop a financial tracker that resolves your own cash flow issues while serving as the validation prototype for the SaaS.",
-            actionPlan: "Draft a task to list your exact UPI/card transactional sources and describe how they should be parsed."
-          };
-        }
-
-        // 2. Market opportunity validation
-        if (childText.includes('many') && (childText.includes('issue') || childText.includes('knowledge') || childText.includes('wealth'))) {
-          return {
-            connection: "Market opportunity validation confirming general audience demand.",
-            how: "It transforms your personal financial struggle into a high-demand SaaS concept by validating that others share the exact same pain point.",
-            why: "A viable product requires a target addressable market. A widespread low knowledge of wealth creation demonstrates potential product scalability.",
-            outcome: "A commercial business model targeting thousands of users struggling with budget tracking and wealth education.",
-            actionPlan: "Create a task to draft a quick feedback poll or talk to 5 peers about their budget planning struggles."
-          };
-        }
-
-        // 3. Multi-app fragmentation
-        if (childText.includes('apps') || childText.includes('gpay') || childText.includes('indmoney') || childText.includes('excel') || childText.includes('youtube')) {
-          return {
-            connection: "Product scope specification highlighting current market fragmentation.",
-            how: "It defines the core user experience challenge: users are currently forced to jump across 5 different apps (GPay, spreadsheets, youtube, investment portals).",
-            why: "App sprawl causes tool fatigue. Consolidating payments, tracking, budgeting, and financial education into one platform creates a massive competitive advantage.",
-            outcome: "An all-in-one personal wealth hub providing a unified dashboard that replaces spreadsheets, trackers, and portals.",
-            actionPlan: "Create a task to map out the dashboard user flow and define unified data models for budgeting and goal planning."
-          };
-        }
-
-        // General Fallback
-        return {
-          connection: `A structural link between your active focus ${activeThought.category} and the related ${selectedNodeThought.category} node.`,
-          how: "By aligning these two nodes, you connect a conceptual parent with an operational child checkpoint.",
-          why: "The similarity engine mapped these thoughts because they share planning context and terms.",
-          outcome: "Completing this child node systematically unblocks progress on the parent focus thought.",
-          actionPlan: "Define an action item in the form below to begin working on this connection."
-        };
-      })()
-    : null;
+      } catch (err) {
+        console.error('Error fetching detailed synthesis:', err);
+      } finally {
+        setLoadingDetailed(false);
+      }
+    };
+    fetchDetailed();
+  }, [activeThoughtId, selectedNodeId]);
 
   // Handle single node click (selection)
   const handleNodeClick = (thoughtId: string) => {
@@ -988,9 +965,7 @@ export default function ConnectionsPage() {
                     )}
                   </div>
 
-                  <div className="border-t border-zinc-900 my-4" />
-
-                  {/* Dynamic States inside card */}
+                  <div className="border-t border-zinc-900 my-4" />                  {/* Dynamic States inside card */}
                   {!selectedNodeThought ? (
                     // STATE A: Consolidated Overview (No child selected)
                     <div className="space-y-4 text-xs animate-fadeIn">
@@ -1019,19 +994,29 @@ export default function ConnectionsPage() {
                       </div>
 
                       {/* Consolidated Connection Summary */}
-                      {consolidatedSummary && (
-                        <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/20 p-4 rounded-xl">
-                          <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Consolidated Connection Summary
-                          </label>
-                          <p className="text-zinc-200 font-semibold text-[11px] leading-relaxed select-text">
-                            {consolidatedSummary.header}
-                          </p>
-                          <p className="text-zinc-405 text-[11px] leading-relaxed pt-1 select-text">
-                            {consolidatedSummary.detail}
-                          </p>
-                        </div>
-                      )}
+                      <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/20 p-4 rounded-xl min-h-[100px] flex flex-col justify-center relative">
+                        <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Consolidated Connection Summary
+                        </label>
+                        
+                        {loadingConsolidated ? (
+                          <div className="flex items-center justify-center py-6 gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-indigo-450" />
+                            <span className="text-zinc-500 text-[10px]">Analyzing connection patterns...</span>
+                          </div>
+                        ) : consolidatedAnalysis ? (
+                          <>
+                            <p className="text-zinc-200 font-semibold text-[11px] leading-relaxed select-text">
+                              {consolidatedAnalysis.header}
+                            </p>
+                            <p className="text-zinc-400 text-[11px] leading-relaxed pt-1.5 select-text">
+                              {consolidatedAnalysis.detail}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-zinc-500 text-[11px]">No connection analysis available.</p>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     // STATE B: Single Selected Child Details
@@ -1068,31 +1053,38 @@ export default function ConnectionsPage() {
                       </div>
 
                       {/* Detailed Connection Summary Breakdown */}
-                      {detailedInsight && (
-                        <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850">
-                          <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Detailed Connection Analysis
-                          </label>
-                          
+                      <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850 min-h-[140px] flex flex-col justify-center relative">
+                        <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Detailed Connection Analysis
+                        </label>
+                        
+                        {loadingDetailed ? (
+                          <div className="flex items-center justify-center py-10 gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-indigo-450" />
+                            <span className="text-zinc-500 text-[10px]">JARVIS is analyzing thought linkages...</span>
+                          </div>
+                        ) : detailedAnalysis ? (
                           <div className="space-y-2.5 bg-black/10 p-3 rounded-lg border border-zinc-900/45">
-                            <p className="text-zinc-250 text-[11.5px] leading-relaxed select-text">
-                              <strong>What is the connection?</strong> {detailedInsight.connection}
+                            <p className="text-zinc-250 text-[11px] leading-relaxed select-text">
+                              <strong>What is the connection?</strong> {detailedAnalysis.connection}
                             </p>
                             <p className="text-zinc-300 text-[11px] leading-relaxed select-text">
-                              <strong>How?</strong> {detailedInsight.how}
+                              <strong>How?</strong> {detailedAnalysis.how}
                             </p>
                             <p className="text-zinc-300 text-[11px] leading-relaxed select-text">
-                              <strong>Why?</strong> {detailedInsight.why}
+                              <strong>Why?</strong> {detailedAnalysis.why}
                             </p>
                             <p className="text-zinc-350 text-[11px] leading-relaxed select-text">
-                              <strong>What is the potential outcome?</strong> {detailedInsight.outcome}
+                              <strong>What is the potential outcome?</strong> {detailedAnalysis.outcome}
                             </p>
-                            <p className="text-indigo-300 text-[11px] leading-relaxed pt-1 border-t border-zinc-900 select-text">
-                              <strong>Action Plan:</strong> {detailedInsight.actionPlan}
+                            <p className="text-indigo-300 text-[11px] leading-relaxed pt-1.5 border-t border-zinc-900 select-text">
+                              <strong>Action Plan:</strong> {detailedAnalysis.actionPlan}
                             </p>
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <p className="text-zinc-500 text-[11px]">No detailed analysis available.</p>
+                        )}
+                      </div>
 
                       {/* Task planner derived from this connection */}
                       <div className="space-y-2 bg-indigo-950/10 border border-indigo-900/20 p-3.5 rounded-xl">
