@@ -17,7 +17,7 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
   const [pageSize, setPageSize] = useState(pageSizeOptions[0]);
   const [isClustered, setIsClustered] = useState(false);
 
-  const totalPages = Math.ceil(totalItems / pageSize);
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
 
   const handlePrev = () => {
     const newPage = Math.max(1, page - 1);
@@ -42,41 +42,50 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
   };
 
   return (
-    <div className="flex items-center space-x-4 mb-4">
+    <div className="flex items-center space-x-4">
+      {/* Cluster Toggle Button */}
       <button
-        className="px-3 py-1 rounded bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/40"
         onClick={toggleCluster}
+        className={`h-[38px] px-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center ${
+          isClustered 
+            ? 'bg-indigo-650 text-white border-indigo-600 shadow-md shadow-indigo-600/10'
+            : 'bg-zinc-900/60 text-zinc-300 border-zinc-850 hover:bg-zinc-800/60 hover:text-white'
+        }`}
       >
         {isClustered ? 'Show Raw' : 'Cluster'}
       </button>
-      <div className="flex items-center space-x-2">
-        <label className="text-xs text-zinc-400">Page:</label>
+
+      {/* Pagination Controls */}
+      <div className="flex items-center space-x-2 bg-zinc-900/40 border border-zinc-850/40 rounded-xl p-1 h-[38px]">
         <button
-          className="px-2 py-0.5 rounded bg-zinc-800/50 text-zinc-300 disabled:opacity-50"
           onClick={handlePrev}
           disabled={page <= 1}
+          className="h-7 w-7 flex items-center justify-center rounded-lg bg-zinc-900/60 border border-zinc-850 hover:bg-zinc-800/60 text-zinc-350 disabled:opacity-30 disabled:hover:bg-zinc-900/60 transition-all cursor-pointer font-bold text-xs"
         >
           ‹
         </button>
-        <span className="text-xs text-zinc-300">{page}/{totalPages}</span>
+        <span className="text-xs text-zinc-400 px-2 min-w-[50px] text-center select-none">
+          {page} / {totalPages}
+        </span>
         <button
-          className="px-2 py-0.5 rounded bg-zinc-800/50 text-zinc-300 disabled:opacity-50"
           onClick={handleNext}
           disabled={page >= totalPages}
+          className="h-7 w-7 flex items-center justify-center rounded-lg bg-zinc-900/60 border border-zinc-850 hover:bg-zinc-800/60 text-zinc-350 disabled:opacity-30 disabled:hover:bg-zinc-900/60 transition-all cursor-pointer font-bold text-xs"
         >
           ›
         </button>
       </div>
+
+      {/* Page Size Selector */}
       <div className="flex items-center space-x-2">
-        <label className="text-xs text-zinc-400">Per page:</label>
         <select
           value={pageSize}
           onChange={handleSizeChange}
-          className="bg-zinc-800/50 text-zinc-200 text-xs rounded px-1 py-0.5"
+          className="h-[38px] bg-zinc-900/60 border border-zinc-850 text-zinc-300 text-xs rounded-xl px-3 focus:outline-none transition-all cursor-pointer"
         >
           {pageSizeOptions.map((opt) => (
             <option key={opt} value={opt}>
-              {opt}
+              {opt} per page
             </option>
           ))}
         </select>

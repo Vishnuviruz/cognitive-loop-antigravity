@@ -297,9 +297,9 @@ export default function ConnectionsPage() {
             <div className="absolute bottom-0 right-0 w-[150px] h-[150px] rounded-full bg-cyan-500/5 blur-[50px] pointer-events-none" />
 
             {/* Filter and Control bar */}
-            <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-zinc-900 pb-4">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
+            <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border-b border-zinc-905 pb-4">
+              <div className="relative flex-1 w-full max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="text"
                   placeholder="Search connections..."
@@ -308,7 +308,7 @@ export default function ConnectionsPage() {
                     setSearchQuery(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-900/60 border border-zinc-850 rounded-xl text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition-all"
+                  className="w-full h-[38px] pl-9 pr-4 bg-zinc-900/60 border border-zinc-850 rounded-xl text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition-all"
                 />
               </div>
 

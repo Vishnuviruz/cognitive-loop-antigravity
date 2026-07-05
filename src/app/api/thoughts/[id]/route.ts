@@ -7,7 +7,7 @@ import { eq, and } from 'drizzle-orm';
 // PATCH /api/thoughts/[id] - Update a thought (category, summary, content, tags, parentId)
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -15,7 +15,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'unauthorized', message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     const existing = await db.query.thoughts.findFirst({
@@ -48,7 +48,7 @@ export async function PATCH(
 // DELETE /api/thoughts/[id] - Delete a thought
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -56,7 +56,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'unauthorized', message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const existing = await db.query.thoughts.findFirst({
       where: and(eq(thoughts.id, id), eq(thoughts.userId, user.id)),
