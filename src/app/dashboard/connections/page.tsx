@@ -89,7 +89,8 @@ export default function ConnectionsPage() {
 
   // Floating Tooltip coordinates & state
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [hoveredNodeCoords, setHoveredNodeCoords] = useState<{ x: number; y: number } | null>(null);
+  const [hoveredNodeCoords, setHoveredNodeCoords] = useState<{ x: number; y: number; rectWidth: number; rectHeight: number } | null>(null);
+  const [hoveredType, setHoveredType] = useState<'graph' | 'list' | null>(null);
   
   // Custom delete confirmation modal state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -465,6 +466,8 @@ export default function ConnectionsPage() {
               setHoveredNodeCoords({
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top,
+                rectWidth: rect.width,
+                rectHeight: rect.height,
               });
             }}
             className="lg:col-span-7 glass-panel rounded-2xl p-6 border-zinc-800/80 flex flex-col items-center justify-center relative overflow-hidden select-none bg-zinc-950/20 shadow-xl"
@@ -660,8 +663,14 @@ export default function ConnectionsPage() {
                           className="cursor-pointer"
                           onClick={() => handleNodeClick(node.thoughtId)}
                           onDoubleClick={() => handleNodeDoubleClick(node.thoughtId)}
-                          onMouseEnter={() => setHoveredNodeId(node.thoughtId)}
-                          onMouseLeave={() => setHoveredNodeId(null)}
+                          onMouseEnter={() => {
+                            setHoveredNodeId(node.thoughtId);
+                            setHoveredType('graph');
+                          }}
+                          onMouseLeave={() => {
+                            setHoveredNodeId(null);
+                            setHoveredType(null);
+                          }}
                         >
                           {/* Selected glow ring indicator */}
                           {isSelected && (
@@ -802,8 +811,14 @@ export default function ConnectionsPage() {
                                 className="cursor-pointer"
                                 onClick={() => handleNodeClick(node.thoughtId)}
                                 onDoubleClick={() => handleNodeDoubleClick(node.thoughtId)}
-                                onMouseEnter={() => setHoveredNodeId(node.thoughtId)}
-                                onMouseLeave={() => setHoveredNodeId(null)}
+                                onMouseEnter={() => {
+                                  setHoveredNodeId(node.thoughtId);
+                                  setHoveredType('graph');
+                                }}
+                                onMouseLeave={() => {
+                                  setHoveredNodeId(null);
+                                  setHoveredType(null);
+                                }}
                               >
                                 <circle
                                   cx={childX}
@@ -843,8 +858,14 @@ export default function ConnectionsPage() {
                 <g 
                   className="cursor-pointer" 
                   onClick={() => setSelectedNodeId(null)}
-                  onMouseEnter={() => setHoveredNodeId(activeThought.id)}
-                  onMouseLeave={() => setHoveredNodeId(null)}
+                  onMouseEnter={() => {
+                    setHoveredNodeId(activeThought.id);
+                    setHoveredType('graph');
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredNodeId(null);
+                    setHoveredType(null);
+                  }}
                 >
                   {/* Outer pulsating backdrop halo */}
                   <circle
@@ -891,12 +912,16 @@ export default function ConnectionsPage() {
             </svg>
 
             {/* Floating Rich Tooltip Overlay for Nodes */}
-            {hoveredNodeId && hoveredNodeCoords && (
+            {hoveredNodeId && hoveredNodeCoords && hoveredType === 'graph' && (
               <div 
                 style={{ 
                   position: 'absolute', 
-                  left: hoveredNodeCoords.x + 15, 
-                  top: hoveredNodeCoords.y + 15,
+                  left: hoveredNodeCoords.x + 280 > (hoveredNodeCoords.rectWidth || 500)
+                    ? Math.max(10, hoveredNodeCoords.x - 280 - 15)
+                    : hoveredNodeCoords.x + 15, 
+                  top: hoveredNodeCoords.y + 200 > (hoveredNodeCoords.rectHeight || 500)
+                    ? Math.max(10, hoveredNodeCoords.y - 200 - 15)
+                    : hoveredNodeCoords.y + 15,
                   pointerEvents: 'none'
                 }}
                 className="z-50 w-64 p-3 bg-zinc-950/95 border border-zinc-800 rounded-xl shadow-2xl text-[10px] text-zinc-400 select-text animate-fadeIn space-y-1.5 backdrop-blur-md"
@@ -949,7 +974,18 @@ export default function ConnectionsPage() {
             
             {/* Connection Overview Card (Unified details layout) */}
             {activeThought && (
-              <div className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md space-y-4 relative">
+              <div 
+                onMouseMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredNodeCoords({
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
+                    rectWidth: rect.width,
+                    rectHeight: rect.height,
+                  });
+                }}
+                className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md space-y-4 relative"
+              >
                 
                 {/* Header operations */}
                 <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
@@ -1100,45 +1136,31 @@ export default function ConnectionsPage() {
                          </label>
                          <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1">
                            {connectedNodes.map((node) => (
-                             <div key={node.thoughtId} className="relative group">
-                               <button
-                                 type="button"
-                                 onClick={() => handleNodeClick(node.thoughtId)}
-                                 className="px-2.5 py-1.5 bg-zinc-900/40 hover:bg-zinc-900/80 border border-transparent hover:border-zinc-800/60 focus:outline-none focus:ring-0 rounded-xl text-[10.5px] text-zinc-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer max-w-[220px] truncate"
-                               >
-                                 <span 
-                                   className="w-1.5 h-1.5 rounded-full shrink-0" 
-                                   style={{ backgroundColor: getCategoryColor(node.fullThought?.category || '') }}
-                                 />
-                                 <span className="truncate font-semibold text-left">
-                                   [{node.fullThought?.category}] {node.fullThought?.summary}
-                                 </span>
-                                 <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1 py-0.5 rounded border border-indigo-900/10 shrink-0">
-                                   {(node.score * 100).toFixed(0)}%
-                                 </span>
-                               </button>
-                               
-                               {/* Rich Tooltip Card for child node list pill on hover */}
-                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col gap-1.5 w-64 p-3 bg-zinc-950/95 border border-zinc-850 rounded-xl shadow-2xl pointer-events-none text-left z-50 text-[10px] text-zinc-400 select-text animate-fadeIn backdrop-blur-md">
-                                 <div className="flex items-center justify-between">
-                                   <span 
-                                     className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                                     style={{ 
-                                       backgroundColor: `${getCategoryColor(node.fullThought?.category || '')}20`,
-                                       color: getCategoryColor(node.fullThought?.category || ''),
-                                       border: `1px solid ${getCategoryColor(node.fullThought?.category || '')}30`
-                                     }}
-                                   >
-                                     {node.fullThought?.category}
-                                   </span>
-                                   <span className="text-[9px] text-indigo-400 font-bold font-mono">
-                                     Match: {(node.score * 100).toFixed(0)}%
-                                   </span>
-                                 </div>
-                                 <h5 className="font-bold text-white text-[10.5px] leading-snug">{node.fullThought?.summary}</h5>
-                                 <p className="line-clamp-4 leading-relaxed text-[10px] text-zinc-450">{node.fullThought?.content}</p>
-                               </div>
-                             </div>
+                             <button
+                               key={node.thoughtId}
+                               type="button"
+                               onClick={() => handleNodeClick(node.thoughtId)}
+                               onMouseEnter={() => {
+                                 setHoveredNodeId(node.thoughtId);
+                                 setHoveredType('list');
+                               }}
+                               onMouseLeave={() => {
+                                 setHoveredNodeId(null);
+                                 setHoveredType(null);
+                               }}
+                               className="px-2.5 py-1.5 bg-zinc-900/40 hover:bg-zinc-900/80 border border-transparent hover:border-zinc-800/60 focus:outline-none focus:ring-0 rounded-xl text-[10.5px] text-zinc-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer max-w-[220px] truncate"
+                             >
+                               <span 
+                                 className="w-1.5 h-1.5 rounded-full shrink-0" 
+                                 style={{ backgroundColor: getCategoryColor(node.fullThought?.category || '') }}
+                               />
+                               <span className="truncate font-semibold text-left">
+                                 [{node.fullThought?.category}] {node.fullThought?.summary}
+                               </span>
+                               <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1 py-0.5 rounded border border-indigo-900/10 shrink-0">
+                                 {(node.score * 100).toFixed(0)}%
+                               </span>
+                             </button>
                            ))}
                          </div>
                        </div>
@@ -1298,11 +1320,59 @@ export default function ConnectionsPage() {
                          <Check className="w-3.5 h-3.5" /> {taskSuccessMessage}
                        </div>
                      )}
-                   </div>
+                    </div>
 
-                 </div>
-                 </div>
-               )}
+                  </div>
+
+                  {/* Floating Rich Tooltip Overlay for List */}
+                  {hoveredNodeId && hoveredNodeCoords && hoveredType === 'list' && (
+                    <div 
+                      style={{ 
+                        position: 'absolute', 
+                        left: hoveredNodeCoords.x + 280 > (hoveredNodeCoords.rectWidth || 400)
+                          ? Math.max(10, hoveredNodeCoords.x - 280 - 15)
+                          : hoveredNodeCoords.x + 15, 
+                        top: hoveredNodeCoords.y + 200 > (hoveredNodeCoords.rectHeight || 400)
+                          ? Math.max(10, hoveredNodeCoords.y - 200 - 15)
+                          : hoveredNodeCoords.y + 15,
+                        pointerEvents: 'none'
+                      }}
+                      className="z-50 w-64 p-3 bg-zinc-950/95 border border-zinc-800 rounded-xl shadow-2xl text-[10px] text-zinc-400 select-text animate-fadeIn space-y-1.5 backdrop-blur-md"
+                    >
+                      {(() => {
+                        const node = thoughts.find(t => t.id === hoveredNodeId);
+                        if (!node) return null;
+                        const rel = activeThought?.connections?.find(c => c.thoughtId === node.id);
+                        const score = rel ? `${(rel.score * 100).toFixed(0)}%` : null;
+                        return (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span 
+                                className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                style={{ 
+                                  backgroundColor: `${getCategoryColor(node.category)}20`,
+                                  color: getCategoryColor(node.category),
+                                  border: `1px solid ${getCategoryColor(node.category)}30`
+                                }}
+                              >
+                                {node.category}
+                              </span>
+                              {score && (
+                                <span className="text-[9px] text-indigo-400 font-bold font-mono">
+                                  Match: {score}
+                                </span>
+                              )}
+                            </div>
+                            <h5 className="font-bold text-white text-[10.5px] leading-snug">{node.summary}</h5>
+                            <p className="line-clamp-4 leading-relaxed text-[10px] text-zinc-450">{node.content}</p>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  </div>
+                )}
 
           </div>
 
