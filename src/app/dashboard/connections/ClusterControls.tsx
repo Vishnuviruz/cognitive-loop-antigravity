@@ -46,13 +46,20 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
       {/* Cluster Toggle Button */}
       <button
         onClick={toggleCluster}
-        className={`h-[38px] px-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center ${
+        className={`h-[38px] px-4 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
           isClustered 
             ? 'bg-indigo-650 text-white border-indigo-600 shadow-md shadow-indigo-600/10'
             : 'bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:bg-zinc-800/40 hover:text-zinc-200'
         }`}
       >
-        {isClustered ? 'Show Raw' : 'Cluster'}
+        <span>{isClustered ? 'Show Raw' : 'Cluster'}</span>
+        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded font-mono ${
+          isClustered 
+            ? 'bg-emerald-500/25 text-emerald-350 border border-emerald-500/20'
+            : 'bg-zinc-800 text-zinc-550 border border-zinc-700'
+        }`}>
+          {isClustered ? 'ON' : 'OFF'}
+        </span>
       </button>
 
       {/* Pagination Controls */}

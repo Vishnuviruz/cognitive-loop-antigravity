@@ -38,6 +38,7 @@ interface Thought {
   content: string;
   summary: string;
   category: string;
+  tags?: string[];
   createdAt: number;
   connections: Connection[];
 }
@@ -85,6 +86,14 @@ export default function ConnectionsPage() {
   
   const [editingRelationshipId, setEditingRelationshipId] = useState<string | null>(null);
   const [editRelScore, setEditRelScore] = useState(0.8);
+
+  // Floating Tooltip coordinates & state
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [hoveredNodeCoords, setHoveredNodeCoords] = useState<{ x: number; y: number } | null>(null);
+  
+  // Custom delete confirmation modal state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -152,25 +161,38 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleDeleteThought = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this thought? This will permanently delete it and all its connections.')) return;
+  const triggerDeleteConfirm = (id: string) => {
+    setDeleteTargetId(id);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
     try {
-      const res = await fetch(`/api/thoughts/${id}`, {
+      const res = await fetch(`/api/thoughts/${deleteTargetId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
-        const remaining = thoughts.filter(t => t.id !== id);
+        const remaining = thoughts.filter(t => t.id !== deleteTargetId);
         setThoughts(remaining);
         setIsEditingActiveThought(false);
         setSelectedNodeId(null);
         if (remaining.length > 0) {
-          setActiveThoughtId(remaining[0].id);
+          const withConnections = remaining.filter(t => (t.connections?.length || 0) > 0);
+          if (withConnections.length > 0) {
+            setActiveThoughtId(withConnections[0].id);
+          } else {
+            setActiveThoughtId(remaining[0].id);
+          }
         } else {
           setActiveThoughtId(null);
         }
       }
     } catch (err) {
       console.error('Failed to delete thought:', err);
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -413,6 +435,9 @@ export default function ConnectionsPage() {
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:shadow-indigo-500/20 cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Add Connection
+            <span className="ml-1.5 text-[9px] bg-indigo-550/40 text-indigo-205 border border-indigo-400/30 px-1.5 py-0.5 rounded font-mono font-bold">
+              {Math.round(thoughts.reduce((acc, t) => acc + (t.connections?.length || 0), 0) / 2)}
+            </span>
           </button>
         </div>
       </div>
@@ -434,7 +459,16 @@ export default function ConnectionsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* Visual Graph View (Left 7 Columns) */}
-          <div className="lg:col-span-7 glass-panel rounded-2xl p-6 border-zinc-800/80 flex flex-col items-center justify-center relative overflow-hidden select-none bg-zinc-950/20 shadow-xl">
+          <div 
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setHoveredNodeCoords({
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+              });
+            }}
+            className="lg:col-span-7 glass-panel rounded-2xl p-6 border-zinc-800/80 flex flex-col items-center justify-center relative overflow-hidden select-none bg-zinc-950/20 shadow-xl"
+          >
             <div className="absolute top-0 left-0 w-[150px] h-[150px] rounded-full bg-indigo-500/5 blur-[50px] pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[150px] h-[150px] rounded-full bg-cyan-500/5 blur-[50px] pointer-events-none" />
 
@@ -483,6 +517,7 @@ export default function ConnectionsPage() {
                     {/* Scrollable results list */}
                     <div className="overflow-y-auto flex-1 space-y-1 pr-1 max-h-52">
                       {thoughts
+                        .filter(t => (t.connections?.length || 0) > 0)
                         .filter(t => 
                           t.summary.toLowerCase().includes(focusSearch.toLowerCase()) || 
                           t.category.toLowerCase().includes(focusSearch.toLowerCase())
@@ -513,11 +548,7 @@ export default function ConnectionsPage() {
                                 <span className="truncate font-medium">[{t.category}] {t.summary}</span>
                               </span>
                               <span 
-                                className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 border ${
-                                  connCount > 0
-                                    ? 'bg-indigo-600/10 text-indigo-300 border-indigo-500/20'
-                                    : 'bg-zinc-900/40 text-zinc-500 border-zinc-800/60'
-                                }`}
+                                className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 border border-indigo-500/20 bg-indigo-600/10 text-indigo-300`}
                               >
                                 {connCount} links
                               </span>
@@ -526,11 +557,12 @@ export default function ConnectionsPage() {
                         })
                       }
                       {thoughts
+                        .filter(t => (t.connections?.length || 0) > 0)
                         .filter(t => 
                           t.summary.toLowerCase().includes(focusSearch.toLowerCase()) || 
                           t.category.toLowerCase().includes(focusSearch.toLowerCase())
                         ).length === 0 && (
-                          <div className="text-center text-zinc-650 text-xs py-6">No thoughts found</div>
+                          <div className="text-center text-zinc-650 text-xs py-6">No thoughts with connections found</div>
                         )
                       }
                     </div>
@@ -628,6 +660,8 @@ export default function ConnectionsPage() {
                           className="cursor-pointer"
                           onClick={() => handleNodeClick(node.thoughtId)}
                           onDoubleClick={() => handleNodeDoubleClick(node.thoughtId)}
+                          onMouseEnter={() => setHoveredNodeId(node.thoughtId)}
+                          onMouseLeave={() => setHoveredNodeId(null)}
                         >
                           {/* Selected glow ring indicator */}
                           {isSelected && (
@@ -768,6 +802,8 @@ export default function ConnectionsPage() {
                                 className="cursor-pointer"
                                 onClick={() => handleNodeClick(node.thoughtId)}
                                 onDoubleClick={() => handleNodeDoubleClick(node.thoughtId)}
+                                onMouseEnter={() => setHoveredNodeId(node.thoughtId)}
+                                onMouseLeave={() => setHoveredNodeId(null)}
                               >
                                 <circle
                                   cx={childX}
@@ -807,8 +843,9 @@ export default function ConnectionsPage() {
                 <g 
                   className="cursor-pointer" 
                   onClick={() => setSelectedNodeId(null)}
+                  onMouseEnter={() => setHoveredNodeId(activeThought.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
                 >
-                  <title>Click to clear selection</title>
                   {/* Outer pulsating backdrop halo */}
                   <circle
                     cx={centerX}
@@ -852,6 +889,59 @@ export default function ConnectionsPage() {
                 </g>
               )}
             </svg>
+
+            {/* Floating Rich Tooltip Overlay for Nodes */}
+            {hoveredNodeId && hoveredNodeCoords && (
+              <div 
+                style={{ 
+                  position: 'absolute', 
+                  left: hoveredNodeCoords.x + 15, 
+                  top: hoveredNodeCoords.y + 15,
+                  pointerEvents: 'none'
+                }}
+                className="z-50 w-64 p-3 bg-zinc-950/95 border border-zinc-800 rounded-xl shadow-2xl text-[10px] text-zinc-400 select-text animate-fadeIn space-y-1.5 backdrop-blur-md"
+              >
+                {(() => {
+                  const node = thoughts.find(t => t.id === hoveredNodeId);
+                  if (!node) return null;
+                  const rel = activeThought?.connections?.find(c => c.thoughtId === node.id);
+                  const score = rel ? `${(rel.score * 100).toFixed(0)}%` : null;
+                  const tagsParsed = Array.isArray(node.tags) ? node.tags : [];
+                  return (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span 
+                          className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                          style={{ 
+                            backgroundColor: `${getCategoryColor(node.category)}20`,
+                            color: getCategoryColor(node.category),
+                            border: `1px solid ${getCategoryColor(node.category)}30`
+                          }}
+                        >
+                          {node.category}
+                        </span>
+                        {score && (
+                          <span className="text-[9px] text-indigo-400 font-bold font-mono">
+                            Score: {score}
+                          </span>
+                        )}
+                      </div>
+                      <h5 className="font-bold text-white text-[10.5px] leading-snug">{node.summary}</h5>
+                      <p className="line-clamp-3 text-zinc-450 leading-relaxed text-[10px]">{node.content}</p>
+                      {tagsParsed.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {tagsParsed.slice(0, 3).map((t: string) => (
+                            <span key={t} className="text-[8px] bg-zinc-900 border border-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded">
+                              #{t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           {/* Node Inspector Details (Right 5 Columns) */}
@@ -880,8 +970,8 @@ export default function ConnectionsPage() {
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteThought(activeThought.id)}
-                            className="p-1 hover:bg-red-950/40 rounded text-zinc-500 hover:text-red-400 transition-colors"
+                            onClick={() => triggerDeleteConfirm(activeThought.id)}
+                            className="p-1 hover:bg-red-950/40 rounded text-zinc-500 hover:text-red-400 transition-colors cursor-pointer"
                             title="Delete Thought"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1010,23 +1100,45 @@ export default function ConnectionsPage() {
                          </label>
                          <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1">
                            {connectedNodes.map((node) => (
-                             <button
-                               key={node.thoughtId}
-                               type="button"
-                               onClick={() => handleNodeClick(node.thoughtId)}
-                               className="px-2.5 py-1.5 bg-zinc-900/40 hover:bg-zinc-900 border border-zinc-850 hover:border-zinc-800 rounded-xl text-[10.5px] text-zinc-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer max-w-[220px] truncate"
-                             >
-                               <span 
-                                 className="w-1.5 h-1.5 rounded-full shrink-0" 
-                                 style={{ backgroundColor: getCategoryColor(node.fullThought?.category || '') }}
-                               />
-                               <span className="truncate font-semibold text-left">
-                                 [{node.fullThought?.category}] {node.fullThought?.summary}
-                               </span>
-                               <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1 py-0.5 rounded border border-indigo-900/10 shrink-0">
-                                 {(node.score * 100).toFixed(0)}%
-                               </span>
-                             </button>
+                             <div key={node.thoughtId} className="relative group">
+                               <button
+                                 type="button"
+                                 onClick={() => handleNodeClick(node.thoughtId)}
+                                 className="px-2.5 py-1.5 bg-zinc-900/40 hover:bg-zinc-900/80 border border-transparent hover:border-zinc-800/60 focus:outline-none focus:ring-0 rounded-xl text-[10.5px] text-zinc-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer max-w-[220px] truncate"
+                               >
+                                 <span 
+                                   className="w-1.5 h-1.5 rounded-full shrink-0" 
+                                   style={{ backgroundColor: getCategoryColor(node.fullThought?.category || '') }}
+                                 />
+                                 <span className="truncate font-semibold text-left">
+                                   [{node.fullThought?.category}] {node.fullThought?.summary}
+                                 </span>
+                                 <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1 py-0.5 rounded border border-indigo-900/10 shrink-0">
+                                   {(node.score * 100).toFixed(0)}%
+                                 </span>
+                               </button>
+                               
+                               {/* Rich Tooltip Card for child node list pill on hover */}
+                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col gap-1.5 w-64 p-3 bg-zinc-950/95 border border-zinc-850 rounded-xl shadow-2xl pointer-events-none text-left z-50 text-[10px] text-zinc-400 select-text animate-fadeIn backdrop-blur-md">
+                                 <div className="flex items-center justify-between">
+                                   <span 
+                                     className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                     style={{ 
+                                       backgroundColor: `${getCategoryColor(node.fullThought?.category || '')}20`,
+                                       color: getCategoryColor(node.fullThought?.category || ''),
+                                       border: `1px solid ${getCategoryColor(node.fullThought?.category || '')}30`
+                                     }}
+                                   >
+                                     {node.fullThought?.category}
+                                   </span>
+                                   <span className="text-[9px] text-indigo-400 font-bold font-mono">
+                                     Match: {(node.score * 100).toFixed(0)}%
+                                   </span>
+                                 </div>
+                                 <h5 className="font-bold text-white text-[10.5px] leading-snug">{node.fullThought?.summary}</h5>
+                                 <p className="line-clamp-4 leading-relaxed text-[10px] text-zinc-450">{node.fullThought?.content}</p>
+                               </div>
+                             </div>
                            ))}
                          </div>
                        </div>
@@ -1420,6 +1532,58 @@ export default function ConnectionsPage() {
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:shadow-indigo-500/20 cursor-pointer"
               >
                 Create Connection
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteConfirm && deleteTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-panel max-w-sm w-full rounded-2xl border-zinc-800 p-6 space-y-6 shadow-2xl relative animate-fadeIn">
+            
+            <button
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setDeleteTargetId(null);
+              }}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 hover:bg-zinc-800/60 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-950/20 text-red-500 border border-red-900/35 rounded-xl shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-md font-bold text-white leading-tight">
+                  Delete Thought?
+                </h3>
+                <p className="text-xs text-zinc-450 leading-relaxed">
+                  Are you sure you want to delete this thought? This will permanently delete it and remove all its connection links. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex justify-end gap-3 pt-2 text-xs">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteTargetId(null);
+                }}
+                className="px-4 py-2 border border-zinc-800 hover:bg-zinc-900 text-zinc-400 rounded-xl font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-red-500/20 cursor-pointer"
+              >
+                Delete Thought
               </button>
             </div>
 
