@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -30,10 +30,10 @@ export const thoughts = sqliteTable('thoughts', {
   createdAt: integer('created_at').notNull(),
 });
 
-export const thoughtConnections = sqliteTable('thought_connections', {
+export const relationships = sqliteTable('relationships', {
   id: text('id').primaryKey(),
-  sourceId: text('source_id').notNull().references(() => thoughts.id, { onDelete: 'cascade' }),
-  targetId: text('target_id').notNull().references(() => thoughts.id, { onDelete: 'cascade' }),
+  thoughtId1: text('thought_id_1').notNull().references(() => thoughts.id, { onDelete: 'cascade' }),
+  thoughtId2: text('thought_id_2').notNull().references(() => thoughts.id, { onDelete: 'cascade' }),
   score: real('score').notNull(),
   createdAt: integer('created_at').notNull(),
 });
