@@ -35,10 +35,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const navigation = [
     { name: 'Timeline & Capture', href: '/dashboard', icon: Activity },
     { name: 'Connections Graph', href: '/dashboard/connections', icon: Network },
-    { name: 'Decision Ledger', href: '/dashboard/decisions', icon: GitMerge },
     { name: 'Action Center', href: '/dashboard/actions', icon: CheckSquare },
-    { name: 'Reflections', href: '/dashboard/reflections', icon: Sparkles },
-    { name: 'Thinking Companion', href: '/dashboard/chat', icon: MessageSquare },
   ];
 
   const handleLogout = async () => {
