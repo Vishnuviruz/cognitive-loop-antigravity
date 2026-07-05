@@ -66,6 +66,12 @@ export default function ConnectionsPage() {
   const [taskPriority, setTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [taskSuccessMessage, setTaskSuccessMessage] = useState('');
   
+  // Selected Thought task creation states
+  const [isSelectedThoughtExpanded, setIsSelectedThoughtExpanded] = useState(false);
+  const [selectedThoughtTaskTitle, setSelectedThoughtTaskTitle] = useState('');
+  const [selectedThoughtTaskPriority, setSelectedThoughtTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [selectedThoughtTaskSuccess, setSelectedThoughtTaskSuccess] = useState('');
+  
   // Modal states
   const [showCreateLinkModal, setShowCreateLinkModal] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState('');
@@ -246,6 +252,29 @@ export default function ConnectionsPage() {
         setTaskSuccessMessage('Task created successfully! Check Action Center.');
         setTaskTitle('');
         setTimeout(() => setTaskSuccessMessage(''), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to create action item:', err);
+    }
+  };
+
+  // Create Task linked to selected child thought
+  const handleCreateSelectedThoughtTask = async (thoughtId: string) => {
+    if (!selectedThoughtTaskTitle.trim()) return;
+    try {
+      const res = await fetch('/api/action-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          thoughtId,
+          title: selectedThoughtTaskTitle,
+          priority: selectedThoughtTaskPriority,
+        }),
+      });
+      if (res.ok) {
+        setSelectedThoughtTaskSuccess('Task created successfully! Check Action Center.');
+        setSelectedThoughtTaskTitle('');
+        setTimeout(() => setSelectedThoughtTaskSuccess(''), 4000);
       }
     } catch (err) {
       console.error('Failed to create action item:', err);
@@ -1039,8 +1068,23 @@ export default function ConnectionsPage() {
 
             {/* Selected Thought Details (Second Box - Middle Right) */}
             <div className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-400" /> Selected Thought Details
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center justify-between gap-2 w-full">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-400" /> Selected Thought Details
+                </span>
+                {selectedNodeThought && (
+                  <button
+                    onClick={() => setIsSelectedThoughtExpanded(!isSelectedThoughtExpanded)}
+                    className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
+                    title={isSelectedThoughtExpanded ? 'Collapse Details' : 'Expand Details'}
+                  >
+                    {isSelectedThoughtExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-indigo-400" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-zinc-400" />
+                    )}
+                  </button>
+                )}
               </h3>
 
               {selectedNodeThought ? (
@@ -1079,13 +1123,13 @@ export default function ConnectionsPage() {
                                 onClick={() => handleUpdateRelationshipScore(selectedConnection.relationshipId)}
                                 className="text-emerald-400 p-0.5 hover:bg-zinc-800/80 rounded cursor-pointer"
                               >
-                                <Check className="w-3 h-3" />
+                                <Check className="w-3.5 h-3.5" />
                               </button>
                               <button 
                                 onClick={() => setEditingRelationshipId(null)}
                                 className="text-zinc-500 p-0.5 hover:bg-zinc-800/80 rounded cursor-pointer"
                               >
-                                <X className="w-3 h-3" />
+                                <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           ) : (
@@ -1119,10 +1163,53 @@ export default function ConnectionsPage() {
                     })()}
                   </div>
                   
-                  <div className="space-y-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60">
+                  <div className="space-y-1.5 bg-black/10 p-3 rounded-lg border border-zinc-900/60">
                     <p className="font-bold text-zinc-200">{selectedNodeThought.summary}</p>
-                    <p className="text-zinc-500 text-[11px] leading-relaxed line-clamp-3 select-text">{selectedNodeThought.content}</p>
+                    <p className={`text-zinc-500 text-[11px] leading-relaxed select-text ${isSelectedThoughtExpanded ? '' : 'line-clamp-3'}`}>
+                      {selectedNodeThought.content}
+                    </p>
                   </div>
+
+                  {/* Task creation form under selected child node details when expanded */}
+                  {isSelectedThoughtExpanded && (
+                    <div className="space-y-2 bg-indigo-950/10 border border-indigo-900/20 p-3.5 rounded-xl mt-3 animate-fadeIn">
+                      <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Briefcase className="w-3.5 h-3.5" /> Derive Task & Sync to Action Center
+                      </label>
+                      
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Task title (e.g. Prototype verification...)"
+                          value={selectedThoughtTaskTitle}
+                          onChange={(e) => setSelectedThoughtTaskTitle(e.target.value)}
+                          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+                        />
+                        <select
+                          value={selectedThoughtTaskPriority}
+                          onChange={(e) => setSelectedThoughtTaskPriority(e.target.value as any)}
+                          className="bg-zinc-900 border border-zinc-800 rounded-lg px-1 py-1.5 text-[11px] text-zinc-400 focus:outline-none"
+                        >
+                          <option value="high">High</option>
+                          <option value="medium">Medium</option>
+                          <option value="low">Low</option>
+                        </select>
+                        <button
+                          onClick={() => handleCreateSelectedThoughtTask(selectedNodeThought.id)}
+                          disabled={!selectedThoughtTaskTitle.trim()}
+                          className="px-3 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40"
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {selectedThoughtTaskSuccess && (
+                        <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                          <Check className="w-3.5 h-3.5" /> {selectedThoughtTaskSuccess}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-zinc-500 text-xs py-2 text-center flex items-center justify-center gap-1.5">
