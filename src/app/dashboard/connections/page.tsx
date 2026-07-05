@@ -58,19 +58,10 @@ export default function ConnectionsPage() {
   const [focusDropdownOpen, setFocusDropdownOpen] = useState(false);
   const [focusSearch, setFocusSearch] = useState('');
   
-  // Expandable arrow state
-  const [isConnectionExpanded, setIsConnectionExpanded] = useState(false);
-  
   // Task creation states
   const [taskTitle, setTaskTitle] = useState('');
   const [taskPriority, setTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [taskSuccessMessage, setTaskSuccessMessage] = useState('');
-  
-  // Selected Thought task creation states
-  const [isSelectedThoughtExpanded, setIsSelectedThoughtExpanded] = useState(false);
-  const [selectedThoughtTaskTitle, setSelectedThoughtTaskTitle] = useState('');
-  const [selectedThoughtTaskPriority, setSelectedThoughtTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
-  const [selectedThoughtTaskSuccess, setSelectedThoughtTaskSuccess] = useState('');
   
   // Modal states
   const [showCreateLinkModal, setShowCreateLinkModal] = useState(false);
@@ -258,29 +249,6 @@ export default function ConnectionsPage() {
     }
   };
 
-  // Create Task linked to selected child thought
-  const handleCreateSelectedThoughtTask = async (thoughtId: string) => {
-    if (!selectedThoughtTaskTitle.trim()) return;
-    try {
-      const res = await fetch('/api/action-items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          thoughtId,
-          title: selectedThoughtTaskTitle,
-          priority: selectedThoughtTaskPriority,
-        }),
-      });
-      if (res.ok) {
-        setSelectedThoughtTaskSuccess('Task created successfully! Check Action Center.');
-        setSelectedThoughtTaskTitle('');
-        setTimeout(() => setSelectedThoughtTaskSuccess(''), 4000);
-      }
-    } catch (err) {
-      console.error('Failed to create action item:', err);
-    }
-  };
-
   // Find active thought record
   const activeThought = thoughts.find((t) => t.id === activeThoughtId);
 
@@ -331,75 +299,85 @@ export default function ConnectionsPage() {
   const selectedConnection = activeThought?.connections.find(c => c.thoughtId === selectedNodeId);
   const selectedNodeThought = thoughts.find(t => t.id === selectedNodeId);
 
-  // Calculate dynamic connections insight client-side (intelligent synthesis)
-  const connectionInsight = activeThought && selectedNodeThought && selectedConnection
-    ? (() => {
-        const pCat = activeThought.category;
-        const cCat = selectedNodeThought.category;
-        const pText = (activeThought.summary + " " + activeThought.content).toLowerCase();
-        const cText = (selectedNodeThought.summary + " " + selectedNodeThought.content).toLowerCase();
-        const matchScore = (selectedConnection.score * 100).toFixed(0);
-
-        // Identify shared concepts
-        const keywords = ['software', 'product', 'money', 'finance', 'tracker', 'health', 'wealth', 'goal', 'create', 'challenge'];
-        const shared = keywords.filter(w => pText.includes(w) && cText.includes(w));
-
-        let details = `This bridges a ${pCat.toLowerCase()} ("${activeThought.summary.substring(0, 30)}...") and a ${cCat.toLowerCase()} ("${selectedNodeThought.summary.substring(0, 30)}...") with a ${matchScore}% correlation.`;
-        let why = `The similarity engine linked these nodes because they share planning context and terms around ${shared.length > 0 ? `'${shared.join("', '")}'` : 'technical execution'}.`;
-        let outcome = 'Connecting these nodes helps expose implicit patterns. Fulfilling the connected thought will directly build progress towards the parent focus thought.';
-        let derivation = 'Create an action item for this connection to define explicit tasks on your roadmap.';
-
-        // Advanced custom semantic bridges
-        if (pText.includes('software') || pText.includes('product')) {
-          if (cText.includes('money') || cText.includes('finance') || cText.includes('planning')) {
-            details = `This connects your software product vision directly to your real-world financial challenge. It bridges personal wealth budgeting with a tech project conception.`;
-            why = `Both thoughts share a focus on personal resource allocation and cost planning. Building the tracker solves your budgeting problems while serving as the MVP prototype for your software idea.`;
-            outcome = `Executing this connection yields a personal tracking tool to manage your budget, which acts as the validation codebase for launching your SaaS/wealth product.`;
-            derivation = `Create a task to draft the MVP technical features of the tracker (UPI scans, budget caps, DB tables).`;
-          } else {
-            details = `This aligns your technical project execution with your learning checkpoints or secondary goals.`;
-            why = `They intersect on development milestones. The parent thought defines the product concept, while the child outlines validation benchmarks.`;
-            outcome = `Completing the child thought establishes core product metrics (MVP verification, user testing, or technical learning).`;
-            derivation = `Create a task to define operational deliverables that link this child checklist to your product sprints.`;
-          }
-        } else if (pCat === 'Problem') {
-          details = `This problem is linked to a potential resolution pathway in the connected ${cCat.toLowerCase()} thought.`;
-          why = `The similarity match identified that the child thought details an action or reflection that directly addresses the root causes of the problem.`;
-          outcome = `Implementing the child node's strategy eliminates the roadblock or mitigates the operational risk of the parent problem.`;
-          derivation = `Create a task to implement the child strategy and measure its impact against the parent problem parameters.`;
-        }
-
-        return { details, why, outcome, derivation };
-      })()
-    : null;
-
-  // Calculate dynamic connections synthesis (when no child node is selected)
-  const globalConnectionsInsight = activeThought
+  // Consolidated Connection Summary (State A - when no child node is selected)
+  const consolidatedSummary = activeThought
     ? (() => {
         if (connectedNodes.length === 0) {
           return {
-            summary: "No connected nodes mapped.",
-            detail: "This thought currently floats in isolation. Click 'Add Connection' above to link it to other ideas, goals, or problems to build your mind map."
+            header: "No connected thoughts mapped.",
+            detail: "This thought currently floats in isolation. Click 'Add Connection' above to link it to other thoughts, goals, or problems to start mapping relationships."
           };
         }
 
-        const categories = connectedNodes.map(c => c.category);
-        const uniqueCats = Array.from(new Set(categories));
-        const catBreakdown = uniqueCats.map(cat => `${categories.filter(c => c === cat).length} ${cat}(s)`).join(', ');
+        const parentText = (activeThought.summary + " " + activeThought.content).toLowerCase();
+        const isFinanceSaaS = parentText.includes('saas') || parentText.includes('software');
 
-        let detail = `This focus parent thought connects with ${connectedNodes.length} thoughts (${catBreakdown}). `;
+        const childTexts = connectedNodes.map(c => (c.summary + " " + c.fullThought?.content).toLowerCase());
+        const hasFinanceChild = childTexts.some(txt => txt.includes('finance') || txt.includes('money') || txt.includes('budget') || txt.includes('apps'));
 
-        if (activeThought.category === 'Idea') {
-          detail += `Linking this core idea to surrounding objectives establishes a clear path of execution. Aligning these connected nodes will help turn this concept into a functional roadmap.`;
-        } else if (activeThought.category === 'Problem') {
-          detail += `The surrounding connection nodes represent potential solutions, mitigation steps, or related learning points that can help resolve this problem.`;
-        } else {
-          detail += `Fulfilling the connected child thoughts will validate and drive structural progress on the active focus thought.`;
+        if (isFinanceSaaS && hasFinanceChild) {
+          return {
+            header: "You want to create a SaaS product and you address there are issues in managing finance, wealth creation, and tracking tools.",
+            detail: "Why can't we build a product that provides a solution for this? Like an all-in-one app to track, plan, analyze, create, and get personalized advice for finance and wealth management."
+          };
         }
 
+        // Fallback consolidated text
+        const categories = connectedNodes.map(c => c.category);
+        const uniqueCats = Array.from(new Set(categories));
         return {
-          summary: `${connectedNodes.length} Connected Node(s) (${uniqueCats.join(', ')})`,
-          detail
+          header: `Consolidated alignment across your focus parent thought and its ${connectedNodes.length} connected nodes (${uniqueCats.join(', ')}).`,
+          detail: `Synthesizing these concepts exposes overlapping development steps. Fulfilling the child nodes will systematically drive validation and execution progress on your active thought.`
+        };
+      })()
+    : null;
+
+  // Detailed Connection Summary (State B - when a child node is selected)
+  const detailedInsight = activeThought && selectedNodeThought
+    ? (() => {
+        const parentText = (activeThought.summary + " " + activeThought.content).toLowerCase();
+        const childText = (selectedNodeThought.summary + " " + selectedNodeThought.content).toLowerCase();
+
+        // 1. Personal finance management issues
+        if (childText.includes('issue') && (childText.includes('finance') || childText.includes('budget') || childText.includes('0 rupee'))) {
+          return {
+            connection: "A validation anchor representing first-hand personal friction.",
+            how: "It serves as the first user story for your SaaS. You are solving your own budget management issues, creating an immediate test audience of one.",
+            why: "SaaS products find success by solving high-pain problems. Struggling with cash flow validates the demand for automated tracking.",
+            outcome: "You develop a financial tracker that resolves your own cash flow issues while serving as the validation prototype for the SaaS.",
+            actionPlan: "Draft a task to list your exact UPI/card transactional sources and describe how they should be parsed."
+          };
+        }
+
+        // 2. Market opportunity validation
+        if (childText.includes('many') && (childText.includes('issue') || childText.includes('knowledge') || childText.includes('wealth'))) {
+          return {
+            connection: "Market opportunity validation confirming general audience demand.",
+            how: "It transforms your personal financial struggle into a high-demand SaaS concept by validating that others share the exact same pain point.",
+            why: "A viable product requires a target addressable market. A widespread low knowledge of wealth creation demonstrates potential product scalability.",
+            outcome: "A commercial business model targeting thousands of users struggling with budget tracking and wealth education.",
+            actionPlan: "Create a task to draft a quick feedback poll or talk to 5 peers about their budget planning struggles."
+          };
+        }
+
+        // 3. Multi-app fragmentation
+        if (childText.includes('apps') || childText.includes('gpay') || childText.includes('indmoney') || childText.includes('excel') || childText.includes('youtube')) {
+          return {
+            connection: "Product scope specification highlighting current market fragmentation.",
+            how: "It defines the core user experience challenge: users are currently forced to jump across 5 different apps (GPay, spreadsheets, youtube, investment portals).",
+            why: "App sprawl causes tool fatigue. Consolidating payments, tracking, budgeting, and financial education into one platform creates a massive competitive advantage.",
+            outcome: "An all-in-one personal wealth hub providing a unified dashboard that replaces spreadsheets, trackers, and portals.",
+            actionPlan: "Create a task to map out the dashboard user flow and define unified data models for budgeting and goal planning."
+          };
+        }
+
+        // General Fallback
+        return {
+          connection: `A structural link between your active focus ${activeThought.category} and the related ${selectedNodeThought.category} node.`,
+          how: "By aligning these two nodes, you connect a conceptual parent with an operational child checkpoint.",
+          why: "The similarity engine mapped these thoughts because they share planning context and terms.",
+          outcome: "Completing this child node systematically unblocks progress on the parent focus thought.",
+          actionPlan: "Define an action item in the form below to begin working on this connection."
         };
       })()
     : null;
@@ -407,7 +385,6 @@ export default function ConnectionsPage() {
   // Handle single node click (selection)
   const handleNodeClick = (thoughtId: string) => {
     setSelectedNodeId(thoughtId);
-    setIsConnectionExpanded(false); // Reset expand state when switching nodes
   };
 
   // Handle double click (re-center)
@@ -889,410 +866,282 @@ export default function ConnectionsPage() {
           </div>
 
           {/* Node Inspector Details (Right 5 Columns) */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className="lg:col-span-5">
             
-            {/* Connection Overview (First Box - Top Right) */}
+            {/* Connection Overview Card (Unified details layout) */}
             {activeThought && (
               <div className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md space-y-4 relative">
                 
                 {/* Header operations */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
                   <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
                     Connection Overview
                   </h3>
 
-                  {/* Actions & Expand toolbar */}
-                  <div className="flex items-center gap-2">
-                    {/* Expand Arrow when a child is selected */}
-                    {selectedNodeThought && (
-                      <button
-                        onClick={() => setIsConnectionExpanded(!isConnectionExpanded)}
-                        className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
-                        title={isConnectionExpanded ? 'Collapse Insight' : 'Expand Insight Details'}
-                      >
-                        {isConnectionExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-indigo-400" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-zinc-400" />
-                        )}
-                      </button>
-                    )}
+                  {/* Actions (Only when no child is selected) */}
+                  {!selectedNodeThought && (
+                    <div className="flex items-center gap-2">
+                      {!isEditingActiveThought ? (
+                        <>
+                          <button
+                            onClick={() => setIsEditingActiveThought(true)}
+                            className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
+                            title="Edit Thought"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteThought(activeThought.id)}
+                            className="p-1 hover:bg-red-950/40 rounded text-zinc-500 hover:text-red-400 transition-colors"
+                            title="Delete Thought"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleUpdateThought(activeThought.id)}
+                            className="p-1 hover:bg-emerald-950/40 rounded text-emerald-400 transition-colors"
+                            title="Save Changes"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setIsEditingActiveThought(false)}
+                            className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
+                            title="Cancel"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-                    {!selectedNodeThought && (
+                {/* Parent Focus Node display */}
+                <div className="space-y-3.5">
+                  
+                  {/* Parent metadata */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span 
+                        className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                        style={{ 
+                          backgroundColor: `${getCategoryColor(activeThought.category)}20`,
+                          color: getCategoryColor(activeThought.category),
+                          border: `1px solid ${getCategoryColor(activeThought.category)}30`
+                        }}
+                      >
+                        Parent Focus Node
+                      </span>
+                      <span className="text-[10px] text-zinc-500 font-medium">
+                        Active Thought
+                      </span>
+                    </div>
+
+                    {isEditingActiveThought ? (
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="text-zinc-500 font-bold block mb-1">Category</label>
+                          <select
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white"
+                          >
+                            {['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'].map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-zinc-500 font-bold block mb-1">Summary</label>
+                          <input
+                            type="text"
+                            value={editSummary}
+                            onChange={(e) => setEditSummary(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-zinc-500 font-bold block mb-1">Content Details</label>
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            rows={4}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                          />
+                        </div>
+                      </div>
+                    ) : (
                       <>
-                        {!isEditingActiveThought ? (
-                          <>
-                            <button
-                              onClick={() => setIsEditingActiveThought(true)}
-                              className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
-                              title="Edit Thought"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteThought(activeThought.id)}
-                              className="p-1 hover:bg-red-950/40 rounded text-zinc-500 hover:text-red-400 transition-colors"
-                              title="Delete Thought"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleUpdateThought(activeThought.id)}
-                              className="p-1 hover:bg-emerald-950/40 rounded text-emerald-400 transition-colors"
-                              title="Save Changes"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setIsEditingActiveThought(false)}
-                              className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
-                              title="Cancel"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
+                        <h4 className="text-sm font-bold text-white leading-snug select-text">
+                          {activeThought.summary}
+                        </h4>
+                        <p className="text-zinc-400 text-xs leading-relaxed max-h-[110px] overflow-y-auto pr-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60 select-text">
+                          {activeThought.content}
+                        </p>
                       </>
                     )}
                   </div>
-                </div>
 
-                {/* Displaying Active Node Details or Parent-Child Overview */}
-                <div className="space-y-3">
-                  {selectedNodeThought && selectedConnection ? (
-                    // Parent-Child Relation Overview Mode
-                    <div className="space-y-3.5 text-xs animate-fadeIn">
+                  <div className="border-t border-zinc-900 my-4" />
+
+                  {/* Dynamic States inside card */}
+                  {!selectedNodeThought ? (
+                    // STATE A: Consolidated Overview (No child selected)
+                    <div className="space-y-4 text-xs animate-fadeIn">
                       
-                      {/* 1) Only show active parent thought details / description summary */}
+                      {/* Connected children list */}
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span 
-                            className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                            style={{ 
-                              backgroundColor: `${getCategoryColor(activeThought.category)}20`,
-                              color: getCategoryColor(activeThought.category)
-                            }}
-                          >
-                            Active Focus Thought
-                          </span>
-                        </div>
-                        <p className="text-zinc-200 font-bold text-xs select-text">{activeThought.summary}</p>
-                        <p className="text-zinc-400 text-[11px] leading-relaxed line-clamp-2 select-text">{activeThought.content}</p>
-                      </div>
-
-                      {/* Connection Overview Header details (Collapsed status) */}
-                      <div className="bg-indigo-950/10 border border-indigo-900/20 p-3 rounded-xl flex items-center justify-between text-[11px]">
-                        <span className="text-zinc-300 truncate pr-2">
-                          <strong>Connection Summary:</strong> Similarity Link to <em>{selectedNodeThought.summary.substring(0, 24)}...</em>
-                        </span>
-                        <span className="font-mono text-indigo-400 font-bold shrink-0">{(selectedConnection.score * 100).toFixed(0)}% Match</span>
-                      </div>
-
-                      {/* Expandable Section Details */}
-                      {isConnectionExpanded && connectionInsight && (
-                        <div className="space-y-4 pt-3.5 border-t border-zinc-900 animate-fadeIn">
-                          
-                          {/* Dynamic detailed child summary inside expanded block */}
-                          <div className="bg-emerald-950/10 border border-emerald-900/25 p-3.5 rounded-xl space-y-1.5">
-                            <label className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider">Connected Child Details</label>
-                            <p className="text-zinc-200 font-semibold select-text">{selectedNodeThought.summary}</p>
-                            <p className="text-zinc-400 text-[11px] leading-relaxed select-text">{selectedNodeThought.content}</p>
-                          </div>
-
-                          {/* AI Connections Insight */}
-                          <div className="space-y-2 bg-zinc-900/40 p-3.5 rounded-xl border border-zinc-850">
-                            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> JARVIS Synthesis Notes
-                            </label>
-                            <p className="text-zinc-300 text-[11px] leading-relaxed select-text"><strong>What is the connection:</strong> {connectionInsight.details}</p>
-                            <p className="text-zinc-400 text-[11px] leading-relaxed pt-1.5 select-text"><strong>Why it connects:</strong> {connectionInsight.why}</p>
-                            <p className="text-zinc-400 text-[11px] leading-relaxed pt-1.5 select-text"><strong>Potential outcome:</strong> {connectionInsight.outcome}</p>
-                            <p className="text-zinc-500 text-[10px] leading-relaxed pt-1.5 italic select-text"><strong>Actionable strategy:</strong> {connectionInsight.derivation}</p>
-                          </div>
-
-                          {/* Task Creation form */}
-                          <div className="space-y-2 bg-indigo-950/10 border border-indigo-900/20 p-3.5 rounded-xl">
-                            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                              <Briefcase className="w-3.5 h-3.5" /> Derive Task & Sync to Action Center
-                            </label>
-                            
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                placeholder="Task title (e.g. Prototype verification...)"
-                                value={taskTitle}
-                                onChange={(e) => setTaskTitle(e.target.value)}
-                                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1 text-[11px] text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
-                              />
-                              <select
-                                value={taskPriority}
-                                onChange={(e) => setTaskPriority(e.target.value as any)}
-                                className="bg-zinc-900 border border-zinc-800 rounded-lg px-1 py-1 text-xs text-zinc-400 focus:outline-none"
-                              >
-                                <option value="high">High</option>
-                                <option value="medium">Medium</option>
-                                <option value="low">Low</option>
-                              </select>
-                              <button
-                                onClick={() => handleCreateTask(selectedNodeThought.id)}
-                                disabled={!taskTitle.trim()}
-                                className="px-3 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40"
-                              >
-                                Add
-                              </button>
+                        <label className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider block">
+                          Connected Child Thoughts ({connectedNodes.length})
+                        </label>
+                        <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                          {connectedNodes.map((node) => (
+                            <div
+                              key={node.thoughtId}
+                              onClick={() => handleNodeClick(node.thoughtId)}
+                              className="p-2.5 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-850 hover:border-zinc-800 rounded-xl flex items-center justify-between cursor-pointer transition-colors"
+                            >
+                              <span className="truncate text-zinc-300 font-medium pr-2">
+                                [{node.fullThought?.category}] {node.fullThought?.summary}
+                              </span>
+                              <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1.5 py-0.5 rounded border border-indigo-900/20 shrink-0">
+                                {(node.score * 100).toFixed(0)}%
+                              </span>
                             </div>
+                          ))}
+                        </div>
+                      </div>
 
-                            {taskSuccessMessage && (
-                              <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-1">
-                                <Check className="w-3.5 h-3.5" /> {taskSuccessMessage}
-                              </div>
-                            )}
-                          </div>
-
+                      {/* Consolidated Connection Summary */}
+                      {consolidatedSummary && (
+                        <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/20 p-4 rounded-xl">
+                          <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Consolidated Connection Summary
+                          </label>
+                          <p className="text-zinc-200 font-semibold text-[11px] leading-relaxed select-text">
+                            {consolidatedSummary.header}
+                          </p>
+                          <p className="text-zinc-405 text-[11px] leading-relaxed pt-1 select-text">
+                            {consolidatedSummary.detail}
+                          </p>
                         </div>
                       )}
                     </div>
                   ) : (
-                    // Regular Active Parent Node Details mode (Initial State)
-                    <div className="space-y-3.5">
-                      {isEditingActiveThought ? (
-                        <div className="space-y-3 text-xs">
-                          <div>
-                            <label className="text-zinc-500 font-bold block mb-1">Category</label>
-                            <select
-                              value={editCategory}
-                              onChange={(e) => setEditCategory(e.target.value)}
-                              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white"
-                            >
-                              {['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'].map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="text-zinc-500 font-bold block mb-1">Summary</label>
-                            <input
-                              type="text"
-                              value={editSummary}
-                              onChange={(e) => setEditSummary(e.target.value)}
-                              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-zinc-500 font-bold block mb-1">Content Details</label>
-                            <textarea
-                              value={editContent}
-                              onChange={(e) => setEditContent(e.target.value)}
-                              rows={4}
-                              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500 resize-none"
-                            />
-                          </div>
+                    // STATE B: Single Selected Child Details
+                    <div className="space-y-4 text-xs animate-fadeIn">
+                      
+                      {/* Back button and Selected Child box */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">
+                            Selected Child Node
+                          </label>
+                          <button
+                            onClick={() => setSelectedNodeId(null)}
+                            className="text-[10px] text-zinc-500 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            ‹ Back to Consolidated Summary
+                          </button>
                         </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {/* Active parent thought details */}
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span 
-                                className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                                style={{ 
-                                  backgroundColor: `${getCategoryColor(activeThought.category)}20`,
-                                  color: getCategoryColor(activeThought.category),
-                                  border: `1px solid ${getCategoryColor(activeThought.category)}30`
-                                }}
-                              >
-                                {activeThought.category}
-                              </span>
-                              <span className="text-[10px] text-zinc-500 font-medium flex items-center gap-1">
-                                <Calendar className="w-3.5 h-3.5" />
-                                {new Date(activeThought.createdAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                            <div className="space-y-1.5">
-                              <h3 className="text-sm font-bold text-white leading-snug select-text">
-                                {activeThought.summary}
-                              </h3>
-                              <p className="text-zinc-400 text-xs leading-relaxed max-h-[120px] overflow-y-auto pr-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60 select-text">
-                                {activeThought.content}
-                              </p>
-                            </div>
-                          </div>
 
-                          {/* Direct Connection Summary for all connected nodes (Initial State) */}
-                          {globalConnectionsInsight && (
-                            <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/30 p-3.5 rounded-xl">
-                              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
-                                <Sparkles className="w-3.5 h-3.5" /> Connections Summary
-                              </label>
-                              <p className="text-white font-semibold text-[11px]">{globalConnectionsInsight.summary}</p>
-                              <p className="text-zinc-400 text-[11px] leading-relaxed select-text">{globalConnectionsInsight.detail}</p>
-                            </div>
-                          )}
+                        <div className="bg-emerald-950/10 border border-emerald-900/25 p-3.5 rounded-xl space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-emerald-950/30 text-emerald-400 border border-emerald-900/30">
+                              {selectedNodeThought.category}
+                            </span>
+                            {selectedConnection && (
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                Match: <strong className="text-indigo-400 font-bold">{(selectedConnection.score * 100).toFixed(0)}%</strong>
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-zinc-250 font-semibold select-text">{selectedNodeThought.summary}</p>
+                          <p className="text-zinc-400 text-[11px] leading-relaxed select-text">{selectedNodeThought.content}</p>
+                        </div>
+                      </div>
+
+                      {/* Detailed Connection Summary Breakdown */}
+                      {detailedInsight && (
+                        <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850">
+                          <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Detailed Connection Analysis
+                          </label>
+                          
+                          <div className="space-y-2.5 bg-black/10 p-3 rounded-lg border border-zinc-900/45">
+                            <p className="text-zinc-250 text-[11.5px] leading-relaxed select-text">
+                              <strong>What is the connection?</strong> {detailedInsight.connection}
+                            </p>
+                            <p className="text-zinc-300 text-[11px] leading-relaxed select-text">
+                              <strong>How?</strong> {detailedInsight.how}
+                            </p>
+                            <p className="text-zinc-300 text-[11px] leading-relaxed select-text">
+                              <strong>Why?</strong> {detailedInsight.why}
+                            </p>
+                            <p className="text-zinc-350 text-[11px] leading-relaxed select-text">
+                              <strong>What is the potential outcome?</strong> {detailedInsight.outcome}
+                            </p>
+                            <p className="text-indigo-300 text-[11px] leading-relaxed pt-1 border-t border-zinc-900 select-text">
+                              <strong>Action Plan:</strong> {detailedInsight.actionPlan}
+                            </p>
+                          </div>
                         </div>
                       )}
+
+                      {/* Task planner derived from this connection */}
+                      <div className="space-y-2 bg-indigo-950/10 border border-indigo-900/20 p-3.5 rounded-xl">
+                        <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Briefcase className="w-3.5 h-3.5" /> Derive Task & Sync to Action Center
+                        </label>
+                        
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Task title (e.g. Map database schema...)"
+                            value={taskTitle}
+                            onChange={(e) => setTaskTitle(e.target.value)}
+                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
+                          />
+                          <select
+                            value={taskPriority}
+                            onChange={(e) => setTaskPriority(e.target.value as any)}
+                            className="bg-zinc-900 border border-zinc-800 rounded-lg px-1 py-1.5 text-xs text-zinc-400 focus:outline-none"
+                          >
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                          </select>
+                          <button
+                            onClick={() => handleCreateTask(selectedNodeThought.id)}
+                            disabled={!taskTitle.trim()}
+                            className="px-3 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40"
+                          >
+                            Add
+                          </button>
+                        </div>
+
+                        {taskSuccessMessage && (
+                          <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                            <Check className="w-3.5 h-3.5" /> {taskSuccessMessage}
+                          </div>
+                        )}
+                      </div>
+                      
                     </div>
                   )}
+
                 </div>
               </div>
             )}
 
-            {/* Selected Thought Details (Second Box - Middle Right) */}
-            <div className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center justify-between gap-2 w-full">
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-400" /> Selected Thought Details
-                </span>
-                {selectedNodeThought && (
-                  <button
-                    onClick={() => setIsSelectedThoughtExpanded(!isSelectedThoughtExpanded)}
-                    className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
-                    title={isSelectedThoughtExpanded ? 'Collapse Details' : 'Expand Details'}
-                  >
-                    {isSelectedThoughtExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-indigo-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-zinc-400" />
-                    )}
-                  </button>
-                )}
-              </h3>
-
-              {selectedNodeThought ? (
-                <div className="space-y-3 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span 
-                      className="px-2 py-0.5 rounded font-bold text-[9px]"
-                      style={{ 
-                        backgroundColor: `${getCategoryColor(selectedNodeThought.category)}20`,
-                        color: getCategoryColor(selectedNodeThought.category)
-                      }}
-                    >
-                      {selectedNodeThought.category}
-                    </span>
-
-                    {/* Show connection score edit / delete options */}
-                    {activeThought && selectedConnection && (() => {
-                      const isEditingRel = editingRelationshipId === selectedConnection.relationshipId;
-
-                      return (
-                        <div className="flex items-center gap-2">
-                          {isEditingRel ? (
-                            <div className="flex items-center gap-1.5 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
-                              <span className="text-[10px] text-zinc-400">Score:</span>
-                              <input 
-                                type="range" 
-                                min="0.1" 
-                                max="1.0" 
-                                step="0.05"
-                                value={editRelScore}
-                                onChange={(e) => setEditRelScore(parseFloat(e.target.value))}
-                                className="w-16 h-1 accent-indigo-500"
-                              />
-                              <span className="font-mono text-white text-[10px] font-bold">{(editRelScore * 100).toFixed(0)}%</span>
-                              <button 
-                                onClick={() => handleUpdateRelationshipScore(selectedConnection.relationshipId)}
-                                className="text-emerald-400 p-0.5 hover:bg-zinc-800/80 rounded cursor-pointer"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button 
-                                onClick={() => setEditingRelationshipId(null)}
-                                className="text-zinc-500 p-0.5 hover:bg-zinc-800/80 rounded cursor-pointer"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-zinc-400">
-                                Match: <strong className="text-indigo-400 font-bold">{(selectedConnection.score * 100).toFixed(0)}%</strong>
-                              </span>
-                              {/* Edit icon for relationship */}
-                              <button
-                                onClick={() => {
-                                  setEditingRelationshipId(selectedConnection.relationshipId);
-                                  setEditRelScore(selectedConnection.score);
-                                }}
-                                className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white cursor-pointer"
-                                title="Edit Match Strength"
-                              >
-                                <Sliders className="w-3 h-3" />
-                              </button>
-                              {/* Disconnect icon */}
-                              <button
-                                onClick={() => handleDeleteRelationship(selectedConnection.relationshipId)}
-                                className="p-1 hover:bg-red-950/30 rounded text-zinc-650 hover:text-red-400 cursor-pointer"
-                                title="Disconnect Link"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  
-                  <div className="space-y-1.5 bg-black/10 p-3 rounded-lg border border-zinc-900/60">
-                    <p className="font-bold text-zinc-200">{selectedNodeThought.summary}</p>
-                    <p className={`text-zinc-500 text-[11px] leading-relaxed select-text ${isSelectedThoughtExpanded ? '' : 'line-clamp-3'}`}>
-                      {selectedNodeThought.content}
-                    </p>
-                  </div>
-
-                  {/* Task creation form under selected child node details when expanded */}
-                  {isSelectedThoughtExpanded && (
-                    <div className="space-y-2 bg-indigo-950/10 border border-indigo-900/20 p-3.5 rounded-xl mt-3 animate-fadeIn">
-                      <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <Briefcase className="w-3.5 h-3.5" /> Derive Task & Sync to Action Center
-                      </label>
-                      
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Task title (e.g. Prototype verification...)"
-                          value={selectedThoughtTaskTitle}
-                          onChange={(e) => setSelectedThoughtTaskTitle(e.target.value)}
-                          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
-                        />
-                        <select
-                          value={selectedThoughtTaskPriority}
-                          onChange={(e) => setSelectedThoughtTaskPriority(e.target.value as any)}
-                          className="bg-zinc-900 border border-zinc-800 rounded-lg px-1 py-1.5 text-[11px] text-zinc-400 focus:outline-none"
-                        >
-                          <option value="high">High</option>
-                          <option value="medium">Medium</option>
-                          <option value="low">Low</option>
-                        </select>
-                        <button
-                          onClick={() => handleCreateSelectedThoughtTask(selectedNodeThought.id)}
-                          disabled={!selectedThoughtTaskTitle.trim()}
-                          className="px-3 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40"
-                        >
-                          Add
-                        </button>
-                      </div>
-
-                      {selectedThoughtTaskSuccess && (
-                        <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-1">
-                          <Check className="w-3.5 h-3.5" /> {selectedThoughtTaskSuccess}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-zinc-500 text-xs py-2 text-center flex items-center justify-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 text-zinc-600" /> Click any orbiting node in the map to display its details here.
-                </div>
-              )}
-            </div>
           </div>
+
         </div>
       )}
 
