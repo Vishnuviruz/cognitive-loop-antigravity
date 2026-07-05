@@ -20,6 +20,8 @@ import {
   Play,
   X,
   AlertCircle,
+  Tag,
+  Square,
 } from 'lucide-react';
 
 interface ActionItem {
@@ -33,6 +35,7 @@ interface ActionItem {
   completedAt: number | null;
   createdAt: number;
   thoughtSummary?: string;
+  category?: string | null;
 }
 
 export default function ActionsPage() {
@@ -40,6 +43,31 @@ export default function ActionsPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('active');
   const [filterPriority, setFilterPriority] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  
+  // Selection/Bulk Actions
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+
+  // Manual Creation States
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createTitle, setCreateTitle] = useState('');
+  const [createDesc, setCreateDesc] = useState('');
+  const [createPriority, setCreatePriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [createCategory, setCreateCategory] = useState('Work');
+  const [createDueDate, setCreateDueDate] = useState('');
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+
+  // Manual Editing States
+  const [editingItem, setEditingItem] = useState<ActionItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editPriority, setEditPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [editCategory, setEditCategory] = useState('Work');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editStatus, setEditStatus] = useState<'pending' | 'in_progress' | 'completed' | 'dismissed'>('pending');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -116,12 +144,178 @@ export default function ActionsPage() {
     if (deleteTargetId) deleteItem(deleteTargetId);
   };
 
+  // Selection & Bulk Handlers
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredItems.map(item => item.id)));
+    }
+  };
+
+  const handleBulkStatus = async (newStatus: 'pending' | 'in_progress' | 'completed' | 'dismissed') => {
+    if (selectedIds.size === 0) return;
+    setIsBulkUpdating(true);
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/action-items/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus }),
+          })
+        )
+      );
+      await fetchItems();
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error('Failed bulk status update:', err);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkCategory = async (cat: string) => {
+    if (selectedIds.size === 0) return;
+    setIsBulkUpdating(true);
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/action-items/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: cat }),
+          })
+        )
+      );
+      await fetchItems();
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error('Failed bulk category update:', err);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} selected tasks?`)) return;
+    setIsBulkUpdating(true);
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/action-items/${id}`, { method: 'DELETE' })
+        )
+      );
+      await fetchItems();
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error('Failed bulk delete:', err);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  // Manual CRUD Handlers
+  const handleCreateTask = async () => {
+    if (!createTitle.trim()) {
+      alert('Title is required');
+      return;
+    }
+    setIsCreatingTask(true);
+    try {
+      const res = await fetch('/api/action-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: createTitle.trim(),
+          description: createDesc.trim(),
+          priority: createPriority,
+          category: createCategory,
+          dueDate: createDueDate ? new Date(createDueDate).getTime() : null,
+        }),
+      });
+      if (res.ok) {
+        setShowCreateModal(false);
+        setCreateTitle('');
+        setCreateDesc('');
+        setCreatePriority('medium');
+        setCreateCategory('Work');
+        setCreateDueDate('');
+        await fetchItems();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Failed to create task');
+      }
+    } catch (err) {
+      console.error('Error creating task:', err);
+    } finally {
+      setIsCreatingTask(false);
+    }
+  };
+
+  const handleStartEdit = (item: ActionItem) => {
+    setEditingItem(item);
+    setEditTitle(item.title);
+    setEditDesc(item.description || '');
+    setEditPriority(item.priority);
+    setEditCategory(item.category || 'Work');
+    setEditDueDate(item.dueDate ? new Date(item.dueDate).toISOString().split('T')[0] : '');
+    setEditStatus(item.status);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem) return;
+    if (!editTitle.trim()) {
+      alert('Title is required');
+      return;
+    }
+    setIsSavingEdit(true);
+    try {
+      const res = await fetch(`/api/action-items/${editingItem.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          description: editDesc.trim(),
+          priority: editPriority,
+          category: editCategory,
+          dueDate: editDueDate ? new Date(editDueDate).getTime() : null,
+          status: editStatus,
+        }),
+      });
+      if (res.ok) {
+        setEditingItem(null);
+        await fetchItems();
+      } else {
+        alert('Failed to save changes');
+      }
+    } catch (err) {
+      console.error('Error editing task:', err);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   // Filter logic
   const filteredItems = items.filter((item) => {
     if (filterStatus === 'active' && (item.status === 'completed' || item.status === 'dismissed')) return false;
     if (filterStatus === 'completed' && item.status !== 'completed') return false;
     if (filterStatus === 'dismissed' && item.status !== 'dismissed') return false;
     if (filterPriority !== 'all' && item.priority !== filterPriority) return false;
+    if (filterCategory !== 'all' && (item.category || 'Work') !== filterCategory) return false;
     return true;
   });
 
@@ -192,15 +386,23 @@ export default function ActionsPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8 select-none">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-white text-glow-indigo">
-          Action Center
-        </h1>
-        <p className="text-zinc-400 text-sm mt-1">
-          JARVIS-extracted tasks from your thoughts. Every idea becomes an actionable step.
-        </p>
+      <div className="flex justify-between items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white text-glow-indigo">
+            Action Center
+          </h1>
+          <p className="text-zinc-400 text-sm mt-1">
+            JARVIS-extracted tasks from your thoughts. Every idea becomes an actionable step.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition-all cursor-pointer shrink-0"
+        >
+          <Plus className="w-4 h-4" /> Add Task
+        </button>
       </div>
 
       {/* Stats Grid */}
@@ -226,53 +428,134 @@ export default function ActionsPage() {
         ))}
       </div>
 
-      {/* Filter Bar */}
-      <div className="space-y-4">
-        {/* Status Filter */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5 text-zinc-500 text-xs px-1">
-            <Filter className="w-3.5 h-3.5" />
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Status filter:</span>
-          </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-            {['active', 'completed', 'dismissed', 'all'].map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
-                  filterStatus === status
-                    ? 'bg-indigo-600/25 border-indigo-500/40 text-indigo-300 shadow-sm'
-                    : 'bg-zinc-950/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
-                }`}
-              >
-                {status}
-              </button>
-            ))}
+      {/* Filter and controls header bar */}
+      <div className="bg-zinc-950/20 border border-zinc-900 rounded-2xl p-4 flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center w-full">
+            {/* Status Filter */}
+            <div className="space-y-1.5 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 text-zinc-505 text-xs px-1">
+                <Filter className="w-3.5 h-3.5" />
+                <span className="font-semibold uppercase tracking-wider text-[9px] text-zinc-500">Status</span>
+              </div>
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                {['active', 'completed', 'dismissed', 'all'].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setFilterStatus(status)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
+                      filterStatus === status
+                        ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300'
+                        : 'bg-zinc-900/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Priority Filter */}
+            <div className="space-y-1.5 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 text-zinc-505 text-xs px-1">
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span className="font-semibold uppercase tracking-wider text-[9px] text-zinc-500">Priority</span>
+              </div>
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                {['all', 'high', 'medium', 'low'].map((priority) => (
+                  <button
+                    key={priority}
+                    onClick={() => setFilterPriority(priority)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
+                      filterPriority === priority
+                        ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300'
+                        : 'bg-zinc-900/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
+                    }`}
+                  >
+                    {priority}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Category Filter */}
+            <div className="space-y-1.5 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 text-zinc-505 text-xs px-1">
+                <Tag className="w-3.5 h-3.5" />
+                <span className="font-semibold uppercase tracking-wider text-[9px] text-zinc-500">Category</span>
+              </div>
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                {['all', 'Work', 'Personal', 'Fitness', 'Finance', 'Ideas', 'Others'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFilterCategory(cat)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
+                      filterCategory === cat
+                        ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300'
+                        : 'bg-zinc-900/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Priority Filter */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5 text-zinc-500 text-xs px-1">
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Priority filter:</span>
-          </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-            {['all', 'high', 'medium', 'low'].map((priority) => (
-              <button
-                key={priority}
-                onClick={() => setFilterPriority(priority)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
-                  filterPriority === priority
-                    ? 'bg-indigo-600/25 border-indigo-500/40 text-indigo-300 shadow-sm'
-                    : 'bg-zinc-950/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
-                }`}
+        {/* Bulk Action Toolbar */}
+        {selectedIds.size > 0 && (
+          <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-fadeIn">
+            <span className="text-xs text-indigo-300 font-semibold">
+              {selectedIds.size} tasks selected
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleBulkStatus(e.target.value as any);
+                    e.target.value = '';
+                  }
+                }}
+                disabled={isBulkUpdating}
+                className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-zinc-300 focus:outline-none"
               >
-                {priority}
+                <option value="">-- Bulk Update Status --</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="dismissed">Dismissed</option>
+              </select>
+
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleBulkCategory(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+                disabled={isBulkUpdating}
+                className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-zinc-300 focus:outline-none"
+              >
+                <option value="">-- Bulk Update Category --</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+                <option value="Fitness">Fitness</option>
+                <option value="Finance">Finance</option>
+                <option value="Ideas">Ideas</option>
+                <option value="Others">Others</option>
+              </select>
+
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkUpdating}
+                className="px-3 py-1 bg-red-950/20 hover:bg-red-950/40 text-red-400 border border-red-900/30 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete Selected
               </button>
-            ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Action Items List */}
@@ -292,10 +575,21 @@ export default function ActionsPage() {
         </div>
       ) : (
         <div className="space-y-3">
+          <div className="flex justify-between items-center px-1 text-[10px] text-zinc-500">
+            <button 
+              onClick={handleToggleSelectAll}
+              className="hover:text-zinc-350 cursor-pointer font-bold"
+            >
+              {selectedIds.size === filteredItems.length ? 'Deselect All' : 'Select All on Page'}
+            </button>
+            <span>Showing {filteredItems.length} entries</span>
+          </div>
+
           {filteredItems.map((item) => {
             const isUpdating = updatingIds.has(item.id);
             const isOverdue = item.dueDate && item.dueDate < Date.now() && item.status !== 'completed' && item.status !== 'dismissed';
             const daysLeft = item.dueDate ? getDaysUntilDue(item.dueDate) : null;
+            const isSelected = selectedIds.has(item.id);
 
             return (
               <div
@@ -306,16 +600,28 @@ export default function ActionsPage() {
                     : item.status === 'dismissed'
                     ? 'border-zinc-800/50 opacity-60'
                     : isOverdue
-                    ? 'border-amber-500/20 bg-amber-950/5'
+                    ? 'border-amber-500/25 bg-amber-950/5'
                     : 'border-zinc-800/80 hover:border-zinc-700'
                 }`}
               >
                 <div className="flex items-start gap-4">
+                  {/* Bulk Select Checkbox */}
+                  <button
+                    onClick={() => handleToggleSelect(item.id)}
+                    className="mt-1 cursor-pointer shrink-0 text-zinc-600 hover:text-indigo-400 transition-colors"
+                  >
+                    {isSelected ? (
+                      <CheckSquare className="w-4 h-4 text-indigo-400" />
+                    ) : (
+                      <Square className="w-4 h-4 text-zinc-700" />
+                    )}
+                  </button>
+
                   {/* Status Toggle */}
                   <button
                     onClick={() => updateItem(item.id, { status: cycleStatus(item.status) })}
                     disabled={isUpdating}
-                    className="mt-0.5 cursor-pointer hover:scale-110 transition-transform disabled:opacity-50"
+                    className="mt-1 cursor-pointer hover:scale-110 transition-transform disabled:opacity-50 shrink-0"
                     title={`Status: ${item.status}. Click to cycle.`}
                   >
                     {isUpdating ? (
@@ -326,24 +632,36 @@ export default function ActionsPage() {
                   </button>
 
                   {/* Content */}
-                  <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex-1 min-w-0 space-y-2 select-text">
                     <div className="flex items-start justify-between gap-3">
-                      <h3 className={`text-sm font-semibold ${
+                      <h3 className={`text-sm font-semibold leading-relaxed ${
                         item.status === 'completed' ? 'text-zinc-500 line-through' : 'text-white'
                       }`}>
                         {item.title}
                       </h3>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0 select-none">
                         {/* Priority Badge */}
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${getPriorityBadge(item.priority)}`}>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold border capitalize ${getPriorityBadge(item.priority)}`}>
                           {getPriorityIcon(item.priority)}
                           {item.priority}
                         </span>
-                        {/* Delete */}
+                        
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => handleStartEdit(item)}
+                          className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 text-zinc-650 hover:text-indigo-400 hover:bg-zinc-900/60 rounded transition-all cursor-pointer"
+                          title="Edit manual task"
+                        >
+                          <svg className="w-3.5 h-3.5 fill-none stroke-current" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+
+                        {/* Delete Button */}
                         <button
                           onClick={() => handleDeleteClick(item.id)}
-                          className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-zinc-600 hover:text-rose-400 transition-all cursor-pointer"
-                          title="Delete item"
+                          className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 text-zinc-650 hover:text-rose-455 hover:bg-zinc-900/60 rounded transition-all cursor-pointer"
+                          title="Delete task"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -351,23 +669,29 @@ export default function ActionsPage() {
                     </div>
 
                     {item.description && (
-                      <p className="text-zinc-400 text-xs leading-relaxed">{item.description}</p>
+                      <p className="text-zinc-400 text-xs leading-relaxed font-normal">{item.description}</p>
                     )}
 
                     {/* Meta Row */}
-                    <div className="flex flex-wrap items-center gap-3 text-[10px]">
+                    <div className="flex flex-wrap items-center gap-3 text-[10px] select-none">
+                      {/* Category Label */}
+                      <span className="inline-flex items-center gap-1 bg-zinc-900/80 px-2 py-0.5 rounded text-zinc-400 border border-zinc-800">
+                        <Tag className="w-2.5 h-2.5 text-zinc-500" />
+                        <span>{item.category || 'Work'}</span>
+                      </span>
+
                       {/* Source Thought */}
                       {item.thoughtSummary && (
-                        <span className="inline-flex items-center gap-1 text-zinc-500">
-                          <Sparkles className="w-3 h-3 text-indigo-400" />
-                          <span className="max-w-[200px] truncate">{item.thoughtSummary}</span>
+                        <span className="inline-flex items-center gap-1 text-zinc-500 max-w-[240px] truncate">
+                          <Sparkles className="w-3 h-3 text-indigo-400 shrink-0" />
+                          <span className="truncate">{item.thoughtSummary}</span>
                         </span>
                       )}
 
                       {/* Due Date */}
                       {item.dueDate && (
                         <span className={`inline-flex items-center gap-1 font-medium ${
-                          isOverdue ? 'text-amber-400' : daysLeft !== null && daysLeft <= 3 ? 'text-amber-400/70' : 'text-zinc-500'
+                          isOverdue ? 'text-amber-450' : daysLeft !== null && daysLeft <= 3 ? 'text-amber-400/80' : 'text-zinc-500'
                         }`}>
                           <Clock className="w-3 h-3" />
                           {isOverdue
@@ -389,35 +713,6 @@ export default function ActionsPage() {
                         </span>
                       )}
                     </div>
-
-                    {/* Quick Actions — always visible on mobile, hover-reveal on desktop */}
-                    {item.status !== 'completed' && item.status !== 'dismissed' && (
-                      <div className="flex flex-wrap items-center gap-2 pt-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                        {item.status === 'pending' && (
-                          <button
-                            onClick={() => updateItem(item.id, { status: 'in_progress' })}
-                            disabled={isUpdating}
-                            className="text-[10px] px-2 py-1 rounded border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/10 transition-all cursor-pointer"
-                          >
-                            Start Working
-                          </button>
-                        )}
-                        <button
-                          onClick={() => updateItem(item.id, { status: 'completed' })}
-                          disabled={isUpdating}
-                          className="text-[10px] px-2 py-1 rounded border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 transition-all cursor-pointer"
-                        >
-                          Mark Complete
-                        </button>
-                        <button
-                          onClick={() => updateItem(item.id, { status: 'dismissed' })}
-                          disabled={isUpdating}
-                          className="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-500 hover:bg-zinc-800/50 transition-all cursor-pointer"
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -425,6 +720,251 @@ export default function ActionsPage() {
           })}
         </div>
       )}
+
+      {/* Create Manual Task Modal Dialog */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
+          
+          <div className="relative w-full max-w-md bg-[#0d0c15] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-4 z-10 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+              <h3 className="text-md font-bold text-white flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-indigo-400" /> Create Manual Task
+              </h3>
+              <button 
+                onClick={() => setShowCreateModal(false)}
+                className="p-1 text-zinc-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Category selector */}
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                  Category
+                </label>
+                <select
+                  value={createCategory}
+                  onChange={(e) => setCreateCategory(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                >
+                  {['Work', 'Personal', 'Fitness', 'Finance', 'Ideas', 'Others'].map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Title input */}
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                  Task Title
+                </label>
+                <input
+                  type="text"
+                  placeholder="What needs to be done?"
+                  value={createTitle}
+                  onChange={(e) => setCreateTitle(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Description input */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">
+                    Description & Details (Optional)
+                  </label>
+                  <span className="text-[9px] text-indigo-400 font-bold italic">JARVIS auto-fills summary if left empty!</span>
+                </div>
+                <textarea
+                  placeholder="Detail the steps, context, or guidelines. If left blank, JARVIS will synthesise a helpful reflection for it."
+                  value={createDesc}
+                  onChange={(e) => setCreateDesc(e.target.value)}
+                  rows={3}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                />
+              </div>
+
+              {/* Priority & Due Date side-by-side */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                    Priority
+                  </label>
+                  <select
+                    value={createPriority}
+                    onChange={(e) => setCreatePriority(e.target.value as any)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={createDueDate}
+                    onChange={(e) => setCreateDueDate(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-zinc-900">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTask}
+                disabled={isCreatingTask}
+                className="px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-lg shadow-indigo-500/10 cursor-pointer"
+              >
+                {isCreatingTask && <Loader2 className="w-3 h-3 animate-spin" />}
+                Generate Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Manual Task Modal Dialog */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setEditingItem(null)} />
+          
+          <div className="relative w-full max-w-md bg-[#0d0c15] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-4 z-10 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+              <h3 className="text-md font-bold text-white flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-indigo-400" /> Edit Task Entry
+              </h3>
+              <button 
+                onClick={() => setEditingItem(null)}
+                className="p-1 text-zinc-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Category */}
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                  Category
+                </label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                >
+                  {['Work', 'Personal', 'Fitness', 'Finance', 'Ideas', 'Others'].map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                  Description Details
+                </label>
+                <textarea
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  rows={3}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                />
+              </div>
+
+              {/* Priority & Due Date side-by-side */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                    Priority
+                  </label>
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value as any)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editDueDate}
+                    onChange={(e) => setEditDueDate(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                  Status
+                </label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="dismissed">Dismissed</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-zinc-900">
+              <button
+                onClick={() => setEditingItem(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={isSavingEdit}
+                className="px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-lg shadow-indigo-500/10 cursor-pointer"
+              >
+                {isSavingEdit && <Loader2 className="w-3 h-3 animate-spin" />}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Custom Delete Confirmation Modal */}
       {showDeleteConfirm && deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -441,7 +981,7 @@ export default function ActionsPage() {
               </div>
               <div className="space-y-1">
                 <h3 className="text-md font-bold text-white leading-tight">Delete Task?</h3>
-                <p className="text-xs text-zinc-450 leading-relaxed">
+                <p className="text-xs text-zinc-455 leading-relaxed">
                   Are you sure you want to delete this action item? This action cannot be undone.
                 </p>
               </div>

@@ -17,7 +17,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { status, priority, title, description, dueDate } = body;
+    const { status, priority, title, description, dueDate, category } = body;
 
     // Verify ownership
     const existing = await db.query.actionItems.findFirst({
@@ -38,6 +38,7 @@ export async function PATCH(
     if (description !== undefined) updates.description = description;
     if (priority !== undefined) updates.priority = priority;
     if (dueDate !== undefined) updates.dueDate = dueDate;
+    if (category !== undefined) updates.category = category;
 
     if (status !== undefined) {
       updates.status = status;

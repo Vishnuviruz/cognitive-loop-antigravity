@@ -17,7 +17,10 @@ import {
   TrendingUp,
   Brain,
   MessageSquare,
-  GitMerge
+  GitMerge,
+  Edit3,
+  Trash2,
+  X
 } from 'lucide-react';
 import VoiceRecorder from '@/components/VoiceRecorder';
 
@@ -87,6 +90,26 @@ export default function DashboardPage() {
   const [outcomeNotes, setOutcomeNotes] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
+  // User Profile
+  const [userProfile, setUserProfile] = useState<{ name?: string | null; email: string } | null>(null);
+
+  // Thought Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5; // Display 5 thoughts per page to keep page compact
+
+  // Thought Editing
+  const [editingThought, setEditingThought] = useState<Thought | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editSummary, setEditSummary] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [newCustomTag, setNewCustomTag] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Thought Deletion
+  const [deleteThoughtId, setDeleteThoughtId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const categories = [
     { value: 'all', label: 'All Entries' },
     { value: 'Idea', label: 'Ideas' },
@@ -97,6 +120,18 @@ export default function DashboardPage() {
     { value: 'Problem', label: 'Problems' },
     { value: 'Opportunity', label: 'Opportunities' },
   ];
+
+  const getFirstName = () => {
+    if (!userProfile?.name) return 'Explorer';
+    return userProfile.name.trim().split(/\s+/)[0];
+  };
+
+  const personalizeDescription = (desc: string) => {
+    const firstName = getFirstName();
+    return desc
+      .replace(/\bthe user\b/gi, `Hey ${firstName}, you`)
+      .replace(/\buser\b/gi, `Hey ${firstName}, you`);
+  };
 
   const getCategoryColor = (cat: string) => {
     switch (cat) {
@@ -120,6 +155,22 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          setUserProfile(data.user);
+        }
+      } catch (err) {
+        console.error('Error fetching user profile:', err);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
     fetchThoughts();
     fetchLoops();
   }, [searchQuery, selectedCategory]);
@@ -335,6 +386,90 @@ export default function DashboardPage() {
     setExpandedThoughtId((prev) => (prev === id ? null : id));
   };
 
+  // Thought CRUD Handlers
+  const handleDeleteThought = async (id: string) => {
+    try {
+      const res = await fetch(`/api/thoughts/${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setThoughtsList((prev) => prev.filter((t) => t.id !== id));
+        fetchLoops(); // Reload loops in background
+      } else {
+        alert('Failed to delete thought.');
+      }
+    } catch (err) {
+      console.error('Error deleting thought:', err);
+    }
+  };
+
+  const handleStartEdit = (t: Thought) => {
+    setEditingThought(t);
+    setEditContent(t.content);
+    setEditSummary(t.summary);
+    setEditCategory(t.category);
+    setEditTags(t.tags || []);
+    setNewCustomTag('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingThought) return;
+    if (!editSummary.trim() || !editContent.trim()) {
+      alert('Content and summary cannot be empty.');
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const res = await fetch(`/api/thoughts/${editingThought.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: editContent.trim(),
+          summary: editSummary.trim(),
+          category: editCategory,
+          tags: editTags,
+        }),
+      });
+
+      if (res.ok) {
+        setThoughtsList((prev) =>
+          prev.map((t) =>
+            t.id === editingThought.id
+              ? {
+                  ...t,
+                  content: editContent.trim(),
+                  summary: editSummary.trim(),
+                  category: editCategory,
+                  tags: editTags,
+                }
+              : t
+          )
+        );
+        setEditingThought(null);
+        fetchLoops(); // Recalculate loops in background
+      } else {
+        alert('Failed to save changes.');
+      }
+    } catch (err) {
+      console.error('Error saving thought edit:', err);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleAddTag = () => {
+    const tag = newCustomTag.trim().toLowerCase();
+    if (tag && !editTags.includes(tag)) {
+      setEditTags((prev) => [...prev, tag]);
+    }
+    setNewCustomTag('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setEditTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
+
   // Get most recent connections for display (limit to 3)
   const recentConnections = thoughtsList
     .flatMap((t) => t.connections.map((c) => ({
@@ -351,6 +486,12 @@ export default function DashboardPage() {
       (t.fromId === v.toId && t.toId === v.fromId)
     ) === i)
     .slice(0, 3);
+
+  const paginatedThoughts = thoughtsList.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+  const totalPages = Math.ceil(thoughtsList.length / pageSize) || 1;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto w-full overflow-x-hidden">
@@ -464,7 +605,7 @@ export default function DashboardPage() {
                         {l.thoughtIds.length} references
                       </span>
                     </div>
-                    <p className="text-zinc-400 text-xs leading-relaxed">{l.description}</p>
+                    <p className="text-zinc-400 text-xs leading-relaxed">{personalizeDescription(l.description)}</p>
                   </div>
                 ))}
               </div>
@@ -533,7 +674,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="relative border-l border-zinc-900 pl-4 md:pl-6 ml-2 space-y-6">
-              {thoughtsList.map((t) => {
+              {paginatedThoughts.map((t) => {
                 const isExpanded = expandedThoughtId === t.id;
                 return (
                   <div key={t.id} className="relative group">
@@ -561,10 +702,36 @@ export default function DashboardPage() {
                           </span>
                         </div>
 
-                        {/* Sentiment indicator */}
-                        <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-                          <span className={`w-2 h-2 rounded-full ${getSentimentColor(t.sentiment)}`} />
-                          <span>{t.sentiment} sentiment</span>
+                        {/* Sentiment indicator & Actions */}
+                        <div className="flex items-center gap-3 justify-between sm:justify-end w-full sm:w-auto border-t border-zinc-900/40 sm:border-0 pt-2 sm:pt-0">
+                          <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                            <span className={`w-2 h-2 rounded-full ${getSentimentColor(t.sentiment)}`} />
+                            <span>{t.sentiment} sentiment</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartEdit(t);
+                              }}
+                              className="p-1 text-zinc-500 hover:text-indigo-400 hover:bg-zinc-900/60 rounded-lg transition-colors cursor-pointer"
+                              title="Edit Thought"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteThoughtId(t.id);
+                                setShowDeleteConfirm(true);
+                              }}
+                              className="p-1 text-zinc-500 hover:text-rose-400 hover:bg-zinc-900/60 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Thought"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -863,6 +1030,197 @@ export default function DashboardPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Thought Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-900 px-2">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-400 hover:text-white disabled:opacity-20 transition-all cursor-pointer font-bold"
+              >
+                ‹ Previous
+              </button>
+              <span className="text-xs text-zinc-500 font-medium">
+                Page {currentPage} of {totalPages} ({thoughtsList.length} entries)
+              </span>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-400 hover:text-white disabled:opacity-20 transition-all cursor-pointer font-bold"
+              >
+                Next ›
+              </button>
+            </div>
+          )}
+
+          {/* Edit Thought Modal */}
+          {editingThought && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setEditingThought(null)} />
+              
+              <div className="relative w-full max-w-lg bg-[#0d0c15] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto z-10">
+                <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+                  <h3 className="text-md font-bold text-white flex items-center gap-2">
+                    <Edit3 className="w-5 h-5 text-indigo-400" /> Edit Entry
+                  </h3>
+                  <button 
+                    onClick={() => setEditingThought(null)}
+                    className="p-1 text-zinc-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  {/* Category */}
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                      Category
+                    </label>
+                    <select
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      {['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'].map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Summary */}
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                      Summary (Timeline view title)
+                    </label>
+                    <input
+                      type="text"
+                      value={editSummary}
+                      onChange={(e) => setEditSummary(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  {/* Content */}
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                      Content Detail
+                    </label>
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      rows={4}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                    />
+                  </div>
+
+                  {/* Custom Tags management */}
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                      Custom Tags & Labels
+                    </label>
+                    
+                    <div className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        placeholder="Add new custom tag..."
+                        value={newCustomTag}
+                        onChange={(e) => setNewCustomTag(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                        className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddTag}
+                        className="px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all cursor-pointer"
+                      >
+                        Add
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 border border-zinc-900 rounded-lg bg-black/20">
+                      {editTags.length === 0 ? (
+                        <span className="text-zinc-600 text-[10px] italic p-1">No custom tags added yet.</span>
+                      ) : (
+                        editTags.map((tag) => (
+                          <span 
+                            key={tag} 
+                            className="inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded bg-zinc-900 text-zinc-300 border border-zinc-800"
+                          >
+                            <span>#{tag}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTag(tag)}
+                              className="text-zinc-500 hover:text-rose-400 font-bold text-xs"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-zinc-900">
+                  <button
+                    onClick={() => setEditingThought(null)}
+                    className="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={isSavingEdit}
+                    className="px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-lg shadow-indigo-500/10 cursor-pointer"
+                  >
+                    {isSavingEdit && <Loader2 className="w-3 h-3 animate-spin" />}
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Thought Confirmation Warning dialog */}
+          {showDeleteConfirm && deleteThoughtId && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setShowDeleteConfirm(false); setDeleteThoughtId(null); }} />
+              
+              <div className="relative w-full max-w-md bg-[#0d0c15] border border-red-500/15 rounded-2xl p-6 shadow-2xl space-y-4 z-10">
+                <div className="flex items-center gap-3 text-red-400 border-b border-zinc-900 pb-3">
+                  <AlertCircle className="w-6 h-6 animate-pulse" />
+                  <h3 className="text-md font-bold text-white">Delete Entry Confirmation</h3>
+                </div>
+                
+                <p className="text-zinc-400 text-xs leading-relaxed">
+                  Are you absolutely sure you want to delete this thought? Any connections mapped to this entry will be removed permanently. This action cannot be undone.
+                </p>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => { setShowDeleteConfirm(false); setDeleteThoughtId(null); }}
+                    className="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (deleteThoughtId) {
+                        await handleDeleteThought(deleteThoughtId);
+                        setShowDeleteConfirm(false);
+                        setDeleteThoughtId(null);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-red-650 hover:bg-red-600 active:scale-95 text-white text-xs font-bold transition-all shadow-lg shadow-red-500/10 cursor-pointer"
+                  >
+                    Delete Permanently
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

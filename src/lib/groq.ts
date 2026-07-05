@@ -481,3 +481,42 @@ ${searchContext}`,
     throw err;
   }
 }
+
+export async function generateTaskReflection(
+  title: string,
+  description: string | null,
+  priority: string,
+  category: string,
+  userName?: string
+): Promise<string> {
+  const name = userName && userName !== 'Demo Explorer' ? userName : 'Vishnu';
+  
+  if (!ai) {
+    return `Hey ${name}, I have logged this "${priority}" priority "${category}" task. Let me know when you need help executing it.`;
+  }
+  
+  try {
+    const response = await ai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content: `You are JARVIS, an advanced and loyal AI assistant. The user just manually created a task with the following details:
+Title: ${title}
+Description: ${description || 'None provided'}
+Priority: ${priority}
+Category: ${category}
+
+Write a short, engaging, single-sentence response addressing the user directly as "${name}". 
+Acknowledge the task and provide a helpful, intelligent tip or proactive reflection.
+Do not use honorifics like "Sir" or "Madam". Keep it under 25 words.`
+        }
+      ]
+    });
+    
+    return response.choices[0]?.message?.content?.trim() || `Task logged successfully, ${name}.`;
+  } catch (err) {
+    console.error('Error generating task reflection:', err);
+    return `Hey ${name}, task has been successfully captured.`;
+  }
+}

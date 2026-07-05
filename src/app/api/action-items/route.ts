@@ -4,6 +4,7 @@ import { actionItems, thoughts } from '@/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import { eq, and, desc } from 'drizzle-orm';
 import crypto from 'crypto';
+import { generateTaskReflection } from '@/lib/groq';
 
 // GET /api/action-items - Fetch action items with optional filtering
 export async function GET(request: Request) {
@@ -35,14 +36,18 @@ export async function GET(request: Request) {
     // Fetch source thought summaries
     const itemsWithSummary = await Promise.all(
       items.map(async (item) => {
-        const thought = await db.query.thoughts.findFirst({
-          where: eq(thoughts.id, item.thoughtId),
-          columns: { summary: true },
-        });
+        let thoughtSummary = null;
+        if (item.thoughtId) {
+          const thought = await db.query.thoughts.findFirst({
+            where: eq(thoughts.id, item.thoughtId),
+            columns: { summary: true },
+          });
+          thoughtSummary = thought?.summary ?? null;
+        }
 
         return {
           ...item,
-          thoughtSummary: thought?.summary ?? null,
+          thoughtSummary,
         };
       })
     );
@@ -66,7 +71,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { thoughtId, title, description, priority, dueDate } = body;
+    const { thoughtId, title, description, priority, dueDate, category } = body;
 
     if (!title || typeof title !== 'string' || !title.trim()) {
       return NextResponse.json(
@@ -83,27 +88,34 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!thoughtId) {
-      return NextResponse.json(
-        { error: 'bad_request', message: 'thoughtId is required' },
-        { status: 400 }
-      );
-    }
-
     const newId = crypto.randomUUID();
     const now = Date.now();
+
+    // Call AI to generate reflection/insight if this is manually created or description is empty
+    let finalDescription = description ?? '';
+    if (!finalDescription.trim()) {
+      const generatedReflection = await generateTaskReflection(
+        title.trim(),
+        null,
+        priority,
+        category ?? 'Work',
+        user.name ?? undefined
+      );
+      finalDescription = generatedReflection;
+    }
 
     const actionItem = {
       id: newId,
       userId: user.id,
-      thoughtId,
+      thoughtId: thoughtId ?? null,
       title: title.trim(),
-      description: description ?? null,
+      description: finalDescription.trim(),
       priority,
       status: 'pending' as const,
       dueDate: dueDate ?? null,
       completedAt: null,
       createdAt: now,
+      category: category ?? 'Work',
     };
 
     await db.insert(actionItems).values(actionItem);

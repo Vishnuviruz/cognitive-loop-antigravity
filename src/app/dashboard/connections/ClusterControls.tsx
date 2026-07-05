@@ -42,7 +42,7 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
       {/* Cluster Toggle Button */}
       <button
         onClick={toggleCluster}
