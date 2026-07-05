@@ -779,7 +779,7 @@ export default function DashboardPage() {
                                                       : s === 'failed'
                                                         ? 'bg-rose-600/20 border-rose-500/40 text-rose-400 shadow-md shadow-rose-500/5'
                                                         : 'bg-zinc-800 border-zinc-700 text-zinc-300'
-                                                    : 'bg-zinc-950 border-zinc-905 text-zinc-500 hover:text-zinc-400'
+                                                    : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-400'
                                                 }`}
                                               >
                                                 {s}

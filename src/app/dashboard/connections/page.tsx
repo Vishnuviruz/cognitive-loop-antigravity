@@ -297,7 +297,7 @@ export default function ConnectionsPage() {
             <div className="absolute bottom-0 right-0 w-[150px] h-[150px] rounded-full bg-cyan-500/5 blur-[50px] pointer-events-none" />
 
             {/* Filter and Control bar */}
-            <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border-b border-zinc-905 pb-4">
+            <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border-b border-zinc-800 pb-4">
               <div className="relative flex-1 w-full max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
@@ -308,7 +308,7 @@ export default function ConnectionsPage() {
                     setSearchQuery(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="w-full h-[38px] pl-9 pr-4 bg-zinc-900/60 border border-zinc-850 rounded-xl text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition-all"
+                  className="w-full h-[38px] pl-9 pr-4 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition-all"
                 />
               </div>
 
@@ -763,13 +763,13 @@ export default function ConnectionsPage() {
                               <span className="font-mono text-white text-[10px] font-bold">{(editRelScore * 100).toFixed(0)}%</span>
                               <button 
                                 onClick={() => handleUpdateRelationshipScore(rel.relationshipId)}
-                                className="text-emerald-400 p-0.5 hover:bg-zinc-850 rounded"
+                                className="text-emerald-400 p-0.5 hover:bg-zinc-800/80 rounded"
                               >
                                 <Check className="w-3 h-3" />
                               </button>
                               <button 
                                 onClick={() => setEditingRelationshipId(null)}
-                                className="text-zinc-500 p-0.5 hover:bg-zinc-850 rounded"
+                                className="text-zinc-500 p-0.5 hover:bg-zinc-800/80 rounded"
                               >
                                 <X className="w-3 h-3" />
                               </button>
@@ -836,11 +836,22 @@ export default function ConnectionsPage() {
                         : 'bg-transparent border-transparent hover:bg-zinc-900/40 text-zinc-400'
                     }`}
                   >
-                    <span className="truncate pr-2">{t.summary}</span>
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span 
+                        className="w-1.5 h-1.5 rounded-full shrink-0" 
+                        style={{ backgroundColor: getCategoryColor(t.category) }}
+                      />
+                      <span className="truncate">{t.summary}</span>
+                    </div>
                     <span 
-                      className="w-1.5 h-1.5 rounded-full shrink-0" 
-                      style={{ backgroundColor: getCategoryColor(t.category) }}
-                    />
+                      className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 border ${
+                        t.connections && t.connections.length > 0
+                          ? 'bg-indigo-600/10 text-indigo-300 border-indigo-500/20'
+                          : 'bg-zinc-900/40 text-zinc-500 border-zinc-800/60'
+                      }`}
+                    >
+                      {t.connections?.length || 0} links
+                    </span>
                   </button>
                 ))}
               </div>
@@ -923,7 +934,7 @@ export default function ConnectionsPage() {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setShowCreateLinkModal(false)}
-                className="px-4 py-2 border border-zinc-850 hover:bg-zinc-900 text-zinc-400 rounded-xl text-xs font-semibold transition-colors"
+                className="px-4 py-2 border border-zinc-800 hover:bg-zinc-900 text-zinc-400 rounded-xl text-xs font-semibold transition-colors"
               >
                 Cancel
               </button>
