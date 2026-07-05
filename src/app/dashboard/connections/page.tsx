@@ -55,6 +55,8 @@ export default function ConnectionsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5); // default to 5 to match ClusterControls
   const [searchQuery, setSearchQuery] = useState('');
+  const [focusDropdownOpen, setFocusDropdownOpen] = useState(false);
+  const [focusSearch, setFocusSearch] = useState('');
   
   // Expandable arrow state
   const [isConnectionExpanded, setIsConnectionExpanded] = useState(false);
@@ -94,9 +96,18 @@ export default function ConnectionsPage() {
       if (res.ok) {
         const data = await res.json();
         setThoughts(data.thoughts || []);
-        // Set latest thought as default active node if not set
+        // Set default active node to the one with the max connections
         if (data.thoughts && data.thoughts.length > 0 && !activeThoughtId) {
-          setActiveThoughtId(data.thoughts[0].id);
+          let defaultId = data.thoughts[0].id;
+          let maxConnections = -1;
+          data.thoughts.forEach((t: any) => {
+            const count = t.connections?.length || 0;
+            if (count > maxConnections) {
+              maxConnections = count;
+              defaultId = t.id;
+            }
+          });
+          setActiveThoughtId(defaultId);
         }
       }
     } catch (err) {
@@ -385,6 +396,107 @@ export default function ConnectionsPage() {
           <div className="lg:col-span-7 glass-panel rounded-2xl p-6 border-zinc-800/80 flex flex-col items-center justify-center relative overflow-hidden select-none bg-zinc-950/20 shadow-xl">
             <div className="absolute top-0 left-0 w-[150px] h-[150px] rounded-full bg-indigo-500/5 blur-[50px] pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[150px] h-[150px] rounded-full bg-cyan-500/5 blur-[50px] pointer-events-none" />
+
+            {/* Active Focus Parent Thought Selector */}
+            <div className="w-full relative mb-4 z-40">
+              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5 px-1">
+                Select Active Focus Parent Thought
+              </label>
+              
+              {/* Selector Button */}
+              <button
+                type="button"
+                onClick={() => setFocusDropdownOpen(!focusDropdownOpen)}
+                className="w-full h-[40px] bg-zinc-900/60 border border-zinc-800/80 rounded-xl px-4 text-left text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition-all flex items-center justify-between cursor-pointer"
+              >
+                <span className="truncate pr-2 font-semibold">
+                  {activeThought 
+                    ? `[${activeThought.category}] ${activeThought.summary}`
+                    : '-- Select a parent thought --'
+                  }
+                </span>
+                <svg className="h-3 w-3 fill-none stroke-current text-zinc-400 shrink-0 ml-2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Popover */}
+              {focusDropdownOpen && (
+                <>
+                  {/* Click-out backdrop */}
+                  <div className="fixed inset-0 z-30" onClick={() => setFocusDropdownOpen(false)} />
+                  
+                  <div className="absolute left-0 top-full mt-1.5 z-50 w-full bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl p-2.5 space-y-2.5 flex flex-col backdrop-blur-md">
+                    {/* Search box inside dropdown */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                      <input
+                        type="text"
+                        placeholder="Search thoughts..."
+                        value={focusSearch}
+                        onChange={(e) => setFocusSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 bg-zinc-900 border border-zinc-800/80 rounded-lg text-xs text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    {/* Scrollable results list */}
+                    <div className="overflow-y-auto flex-1 space-y-1 pr-1 max-h-52">
+                      {thoughts
+                        .filter(t => 
+                          t.summary.toLowerCase().includes(focusSearch.toLowerCase()) || 
+                          t.category.toLowerCase().includes(focusSearch.toLowerCase())
+                        )
+                        .map(t => {
+                          const connCount = t.connections?.length || 0;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setActiveThoughtId(t.id);
+                                setSelectedNodeId(null);
+                                setFocusDropdownOpen(false);
+                                setFocusSearch('');
+                              }}
+                              className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors flex items-center justify-between border cursor-pointer ${
+                                t.id === activeThoughtId
+                                  ? 'bg-indigo-600/10 border-indigo-500/20 text-indigo-300 font-semibold'
+                                  : 'bg-transparent border-transparent hover:bg-zinc-900/40 text-zinc-400'
+                              }`}
+                            >
+                              <span className="truncate pr-4 flex items-center gap-2">
+                                <span 
+                                  className="w-1.5 h-1.5 rounded-full shrink-0" 
+                                  style={{ backgroundColor: getCategoryColor(t.category) }}
+                                />
+                                <span className="truncate font-medium">[{t.category}] {t.summary}</span>
+                              </span>
+                              <span 
+                                className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 border ${
+                                  connCount > 0
+                                    ? 'bg-indigo-600/10 text-indigo-300 border-indigo-500/20'
+                                    : 'bg-zinc-900/40 text-zinc-500 border-zinc-800/60'
+                                }`}
+                              >
+                                {connCount} links
+                              </span>
+                            </button>
+                          );
+                        })
+                      }
+                      {thoughts
+                        .filter(t => 
+                          t.summary.toLowerCase().includes(focusSearch.toLowerCase()) || 
+                          t.category.toLowerCase().includes(focusSearch.toLowerCase())
+                        ).length === 0 && (
+                          <div className="text-center text-zinc-650 text-xs py-6">No thoughts found</div>
+                        )
+                      }
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Filter and Control bar */}
             <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border-b border-zinc-800 pb-4">
@@ -1018,50 +1130,7 @@ export default function ConnectionsPage() {
                 </div>
               )}
             </div>
-
-            {/* Quick Picker List */}
-            <div className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md space-y-3">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-                <Eye className="w-4 h-4 text-zinc-400" /> Mind Map Node Index
-              </h3>
-              <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
-                {thoughts.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      setActiveThoughtId(t.id);
-                      setSelectedNodeId(null);
-                      setIsEditingActiveThought(false);
-                    }}
-                    className={`w-full text-left p-2 rounded-lg text-xs transition-colors flex items-center justify-between border cursor-pointer ${
-                      t.id === activeThoughtId
-                        ? 'bg-indigo-600/10 border-indigo-500/20 text-indigo-300 font-semibold'
-                        : 'bg-transparent border-transparent hover:bg-zinc-900/40 text-zinc-400'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate pr-2">
-                      <span 
-                        className="w-1.5 h-1.5 rounded-full shrink-0" 
-                        style={{ backgroundColor: getCategoryColor(t.category) }}
-                      />
-                      <span className="truncate">{t.summary}</span>
-                    </div>
-                    <span 
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 border ${
-                        t.connections && t.connections.length > 0
-                          ? 'bg-indigo-600/10 text-indigo-300 border-indigo-500/20'
-                          : 'bg-zinc-900/40 text-zinc-500 border-zinc-800/60'
-                      }`}
-                    >
-                      {t.connections?.length || 0} links
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
           </div>
-
         </div>
       )}
 
