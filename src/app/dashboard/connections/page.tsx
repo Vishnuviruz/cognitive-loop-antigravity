@@ -1003,42 +1003,47 @@ export default function ConnectionsPage() {
                      // STATE A: Consolidated Overview (No child selected)
                      <div className="space-y-4 text-xs animate-fadeIn">
                        
-                       {/* Connected children list */}
+                       {/* Connected children list as inline tags */}
                        <div className="space-y-2">
                          <label className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider block">
                            Connected Child Thoughts ({connectedNodes.length})
                          </label>
-                         <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+                         <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1">
                            {connectedNodes.map((node) => (
-                             <div
+                             <button
                                key={node.thoughtId}
+                               type="button"
                                onClick={() => handleNodeClick(node.thoughtId)}
-                               className="p-2 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-850 hover:border-zinc-800 rounded-xl flex items-center justify-between cursor-pointer transition-colors"
+                               className="px-2.5 py-1.5 bg-zinc-900/40 hover:bg-zinc-900 border border-zinc-850 hover:border-zinc-800 rounded-xl text-[10.5px] text-zinc-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer max-w-[220px] truncate"
                              >
-                               <span className="truncate text-zinc-300 font-semibold pr-2">
+                               <span 
+                                 className="w-1.5 h-1.5 rounded-full shrink-0" 
+                                 style={{ backgroundColor: getCategoryColor(node.fullThought?.category || '') }}
+                               />
+                               <span className="truncate font-semibold text-left">
                                  [{node.fullThought?.category}] {node.fullThought?.summary}
                                </span>
-                               <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1.5 py-0.5 rounded border border-indigo-900/20 shrink-0">
+                               <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-950/20 px-1 py-0.5 rounded border border-indigo-900/10 shrink-0">
                                  {(node.score * 100).toFixed(0)}%
                                </span>
-                             </div>
+                             </button>
                            ))}
                          </div>
                        </div>
 
-                       {/* Consolidated Connection Summary (Decent Viewable Fixed Height with scroll) */}
-                       <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/20 p-4 rounded-xl min-h-[120px] max-h-[220px] overflow-y-auto flex flex-col justify-start relative">
-                         <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-1 sticky top-0 bg-zinc-950/20 py-0.5 backdrop-blur-sm z-10">
+                       {/* Consolidated Connection Summary (Label outside scroll box to prevent overlap) */}
+                       <div className="space-y-2 bg-indigo-950/15 border border-indigo-900/20 p-4 rounded-xl flex flex-col justify-start relative">
+                         <label className="text-[9px] font-bold text-indigo-450 uppercase tracking-wider flex items-center gap-1.5 border-b border-indigo-900/30 pb-2 mb-1">
                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Consolidated Connection Summary
                          </label>
                          
                          {loadingConsolidated ? (
-                           <div className="flex-1 flex items-center justify-center py-6 gap-2">
+                           <div className="flex items-center justify-center py-6 gap-2">
                              <Loader2 className="w-4 h-4 animate-spin text-indigo-450" />
                              <span className="text-zinc-500 text-[10px]">Analyzing connection patterns...</span>
                            </div>
                          ) : consolidatedAnalysis ? (
-                           <div className="space-y-2 select-text">
+                           <div className="max-h-[150px] overflow-y-auto pr-1 select-text space-y-2 pt-1">
                              <p className="text-zinc-200 font-semibold text-[11px] leading-relaxed">
                                {consolidatedAnalysis.header}
                              </p>
@@ -1104,40 +1109,41 @@ export default function ConnectionsPage() {
                          </div>
                        </div>
 
-                       {/* Detailed Connection Summary Breakdown (Decent Viewable Fixed Height with scroll) */}
-                       <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850 min-h-[140px] max-h-[260px] overflow-y-auto flex flex-col justify-start relative">
-                         <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-1 sticky top-0 bg-zinc-950/20 py-0.5 backdrop-blur-sm z-10">
+                       {/* Detailed Connection Summary Breakdown (Label outside scroll box to prevent overlap) */}
+                       <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850 flex flex-col justify-start relative">
+                         <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-zinc-800 pb-2 mb-1">
                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Detailed Connection Analysis
                          </label>
                          
                          {loadingDetailed ? (
-                           <div className="flex-1 flex items-center justify-center py-10 gap-2">
+                           <div className="flex items-center justify-center py-10 gap-2">
                              <Loader2 className="w-4 h-4 animate-spin text-indigo-450" />
                              <span className="text-zinc-500 text-[10px]">JARVIS is analyzing thought linkages...</span>
                            </div>
                          ) : detailedAnalysis ? (
-                           <div className="space-y-2.5 bg-black/10 p-3 rounded-lg border border-zinc-900/45 select-text">
-                             <p className="text-zinc-250 text-[11px] leading-relaxed">
-                               <strong>What is the connection?</strong> {detailedAnalysis.connection}
-                             </p>
-                             <p className="text-zinc-300 text-[11px] leading-relaxed">
-                               <strong>How?</strong> {detailedAnalysis.how}
-                             </p>
-                             <p className="text-zinc-300 text-[11px] leading-relaxed">
-                               <strong>Why?</strong> {detailedAnalysis.why}
-                             </p>
-                             <p className="text-zinc-350 text-[11px] leading-relaxed">
-                               <strong>What is the potential outcome?</strong> {detailedAnalysis.outcome}
-                             </p>
-                             <p className="text-indigo-300 text-[11px] leading-relaxed pt-1.5 border-t border-zinc-900">
-                               <strong>Action Plan:</strong> {detailedAnalysis.actionPlan}
-                             </p>
+                           <div className="max-h-[220px] overflow-y-auto pr-1 select-text pt-1">
+                             <div className="space-y-2.5 bg-black/10 p-3 rounded-lg border border-zinc-900/45 select-text">
+                               <p className="text-zinc-250 text-[11px] leading-relaxed">
+                                 <strong>What is the connection?</strong> {detailedAnalysis.connection}
+                               </p>
+                               <p className="text-zinc-300 text-[11px] leading-relaxed">
+                                 <strong>How?</strong> {detailedAnalysis.how}
+                               </p>
+                               <p className="text-zinc-300 text-[11px] leading-relaxed">
+                                 <strong>Why?</strong> {detailedAnalysis.why}
+                               </p>
+                               <p className="text-zinc-350 text-[11px] leading-relaxed">
+                                 <strong>What is the potential outcome?</strong> {detailedAnalysis.outcome}
+                               </p>
+                               <p className="text-indigo-300 text-[11px] leading-relaxed pt-1.5 border-t border-zinc-900">
+                                 <strong>Action Plan:</strong> {detailedAnalysis.actionPlan}
+                               </p>
+                             </div>
                            </div>
                          ) : (
                            <p className="text-zinc-500 text-[11px]">No detailed analysis available.</p>
                          )}
                        </div>
-
                      </div>
                    )}
 
