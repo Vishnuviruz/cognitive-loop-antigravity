@@ -54,6 +54,8 @@ export default function ConnectionsPage() {
   const [showCreateLinkModal, setShowCreateLinkModal] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState('');
   const [newLinkScore, setNewLinkScore] = useState(0.8);
+  const [targetDropdownOpen, setTargetDropdownOpen] = useState(false);
+  const [targetSearch, setTargetSearch] = useState('');
   
   // Editing states
   const [isEditingActiveThought, setIsEditingActiveThought] = useState(false);
@@ -892,23 +894,88 @@ export default function ConnectionsPage() {
               </div>
 
               {/* Target Thought Selector */}
-              <div className="space-y-1">
+              <div className="space-y-1 relative">
                 <label className="text-zinc-500 font-bold block">Target Thought</label>
-                <select
-                  value={selectedTargetId}
-                  onChange={(e) => setSelectedTargetId(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                
+                {/* Custom Combobox Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setTargetDropdownOpen(!targetDropdownOpen)}
+                  className="w-full h-[38px] bg-zinc-900/60 border border-zinc-800/80 rounded-xl px-3 text-left text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500 transition-all flex items-center justify-between cursor-pointer"
                 >
-                  <option value="">-- Choose a thought to connect --</option>
-                  {thoughts
-                    .filter(t => t.id !== activeThoughtId && !activeThought.connections.some(c => c.thoughtId === t.id))
-                    .map(t => (
-                      <option key={t.id} value={t.id}>
-                        [{t.category}] {t.summary.length > 50 ? `${t.summary.substring(0, 48)}...` : t.summary}
-                      </option>
-                    ))
-                  }
-                </select>
+                  <span className="truncate pr-2">
+                    {selectedTargetId 
+                      ? (() => {
+                          const t = thoughts.find(th => th.id === selectedTargetId);
+                          return t ? `[${t.category}] ${t.summary}` : '-- Choose a thought --';
+                        })()
+                      : '-- Choose a thought to connect --'
+                    }
+                  </span>
+                  <svg className="h-3 w-3 fill-none stroke-current text-zinc-400 shrink-0" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Combobox Dropdown Popover */}
+                {targetDropdownOpen && (
+                  <>
+                    {/* Click-out backdrop */}
+                    <div className="fixed inset-0 z-40" onClick={() => setTargetDropdownOpen(false)} />
+                    
+                    <div className="absolute left-0 top-full mt-1.5 z-50 w-full bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl p-2 space-y-2 max-h-60 flex flex-col backdrop-blur-md">
+                      {/* Search box inside dropdown */}
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                        <input
+                          type="text"
+                          placeholder="Search thoughts..."
+                          value={targetSearch}
+                          onChange={(e) => setTargetSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800/80 rounded-lg text-xs text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+
+                      {/* Scrollable results list */}
+                      <div className="overflow-y-auto flex-1 space-y-1 pr-1 max-h-40">
+                        {thoughts
+                          .filter(t => t.id !== activeThoughtId && !activeThought.connections.some(c => c.thoughtId === t.id))
+                          .filter(t => 
+                            t.summary.toLowerCase().includes(targetSearch.toLowerCase()) || 
+                            t.category.toLowerCase().includes(targetSearch.toLowerCase())
+                          )
+                          .map(t => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTargetId(t.id);
+                                setTargetDropdownOpen(false);
+                                setTargetSearch('');
+                              }}
+                              className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors flex items-center justify-between border cursor-pointer ${
+                                t.id === selectedTargetId
+                                  ? 'bg-indigo-600/10 border-indigo-500/20 text-indigo-300 font-semibold'
+                                  : 'bg-transparent border-transparent hover:bg-zinc-900/40 text-zinc-400'
+                              }`}
+                            >
+                              <span className="truncate pr-2">[{t.category}] {t.summary}</span>
+                            </button>
+                          ))
+                        }
+                        {thoughts
+                          .filter(t => t.id !== activeThoughtId && !activeThought.connections.some(c => c.thoughtId === t.id))
+                          .filter(t => 
+                            t.summary.toLowerCase().includes(targetSearch.toLowerCase()) || 
+                            t.category.toLowerCase().includes(targetSearch.toLowerCase())
+                          ).length === 0 && (
+                            <div className="text-center text-zinc-600 text-xs py-4">No thoughts found</div>
+                          )
+                        }
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Match Strength / Score Slider */}
