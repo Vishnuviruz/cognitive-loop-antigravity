@@ -52,8 +52,11 @@ export default function ConnectionsPage() {
   
   // Modal states
   const [showCreateLinkModal, setShowCreateLinkModal] = useState(false);
+  const [selectedSourceId, setSelectedSourceId] = useState('');
   const [selectedTargetId, setSelectedTargetId] = useState('');
   const [newLinkScore, setNewLinkScore] = useState(0.8);
+  const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
+  const [sourceSearch, setSourceSearch] = useState('');
   const [targetDropdownOpen, setTargetDropdownOpen] = useState(false);
   const [targetSearch, setTargetSearch] = useState('');
   
@@ -144,13 +147,13 @@ export default function ConnectionsPage() {
   };
 
   const handleCreateRelationship = async () => {
-    if (!activeThoughtId || !selectedTargetId) return;
+    if (!selectedSourceId || !selectedTargetId) return;
     try {
       const res = await fetch('/api/relationships', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          thoughtId1: activeThoughtId,
+          thoughtId1: selectedSourceId,
           thoughtId2: selectedTargetId,
           score: newLinkScore,
         }),
@@ -269,8 +272,11 @@ export default function ConnectionsPage() {
         {/* Action Controls */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowCreateLinkModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:shadow-indigo-500/20"
+            onClick={() => {
+              setSelectedSourceId(activeThoughtId || '');
+              setShowCreateLinkModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:shadow-indigo-500/20 cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Add Connection
           </button>
@@ -890,10 +896,84 @@ export default function ConnectionsPage() {
 
             <div className="space-y-4 text-xs">
               
-              {/* Active Thought Info */}
-              <div className="bg-indigo-950/20 border border-indigo-900/40 p-3 rounded-xl">
-                <label className="text-[10px] uppercase font-bold text-indigo-400 block mb-1">Active Thought</label>
-                <div className="text-zinc-200 font-semibold truncate">{activeThought.summary}</div>
+
+              {/* Source Thought Selector */}
+              <div className="space-y-1 relative">
+                <label className="text-zinc-500 font-bold block">Source Thought</label>
+                
+                {/* Custom Combobox Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setSourceDropdownOpen(!sourceDropdownOpen)}
+                  className="w-full h-[38px] bg-zinc-900/60 border border-zinc-800/80 rounded-xl px-3 text-left text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500 transition-all flex items-center justify-between cursor-pointer"
+                >
+                  <span className="truncate pr-2">
+                    {selectedSourceId 
+                      ? (() => {
+                          const t = thoughts.find(th => th.id === selectedSourceId);
+                          return t ? `[${t.category}] ${t.summary}` : '-- Choose a source thought --';
+                        })()
+                      : '-- Choose a source thought --'
+                    }
+                  </span>
+                  <svg className="h-3 w-3 fill-none stroke-current text-zinc-400 shrink-0" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Combobox Dropdown Popover */}
+                {sourceDropdownOpen && (
+                  <>
+                    {/* Click-out backdrop */}
+                    <div className="fixed inset-0 z-40" onClick={() => setSourceDropdownOpen(false)} />
+                    
+                    <div className="absolute left-0 top-full mt-1.5 z-50 w-full bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl p-2 space-y-2 max-h-60 flex flex-col backdrop-blur-md">
+                      {/* Search box inside dropdown */}
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                        <input
+                          type="text"
+                          placeholder="Search source thoughts..."
+                          value={sourceSearch}
+                          onChange={(e) => setSourceSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800/80 rounded-lg text-xs text-white placeholder-zinc-650 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+
+                      {/* Scrollable results list */}
+                      <div className="overflow-y-auto flex-1 space-y-1 pr-1 max-h-40">
+                        {thoughts
+                          .filter(t => 
+                            t.summary.toLowerCase().includes(sourceSearch.toLowerCase()) || 
+                            t.category.toLowerCase().includes(sourceSearch.toLowerCase())
+                          )
+                          .map(t => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSourceId(t.id);
+                                // If target was selected to this, clear it
+                                if (selectedTargetId === t.id) {
+                                  setSelectedTargetId('');
+                                }
+                                setSourceDropdownOpen(false);
+                                setSourceSearch('');
+                              }}
+                              className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors flex items-center justify-between border cursor-pointer ${
+                                t.id === selectedSourceId
+                                  ? 'bg-indigo-600/10 border-indigo-500/20 text-indigo-300 font-semibold'
+                                  : 'bg-transparent border-transparent hover:bg-zinc-900/40 text-zinc-400'
+                              }`}
+                            >
+                              <span className="truncate pr-2">[{t.category}] {t.summary}</span>
+                            </button>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Target Thought Selector */}
@@ -904,7 +984,8 @@ export default function ConnectionsPage() {
                 <button
                   type="button"
                   onClick={() => setTargetDropdownOpen(!targetDropdownOpen)}
-                  className="w-full h-[38px] bg-zinc-900/60 border border-zinc-800/80 rounded-xl px-3 text-left text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500 transition-all flex items-center justify-between cursor-pointer"
+                  disabled={!selectedSourceId}
+                  className="w-full h-[38px] bg-zinc-900/60 border border-zinc-800/80 rounded-xl px-3 text-left text-xs text-white placeholder-zinc-550 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500 transition-all flex items-center justify-between disabled:opacity-40 cursor-pointer"
                 >
                   <span className="truncate pr-2">
                     {selectedTargetId 
@@ -912,7 +993,9 @@ export default function ConnectionsPage() {
                           const t = thoughts.find(th => th.id === selectedTargetId);
                           return t ? `[${t.category}] ${t.summary}` : '-- Choose a thought --';
                         })()
-                      : '-- Choose a thought to connect --'
+                      : selectedSourceId 
+                        ? '-- Choose a thought to connect --'
+                        : '-- Select a source thought first --'
                     }
                   </span>
                   <svg className="h-3 w-3 fill-none stroke-current text-zinc-400 shrink-0" viewBox="0 0 24 24">
@@ -921,7 +1004,7 @@ export default function ConnectionsPage() {
                 </button>
 
                 {/* Combobox Dropdown Popover */}
-                {targetDropdownOpen && (
+                {targetDropdownOpen && selectedSourceId && (
                   <>
                     {/* Click-out backdrop */}
                     <div className="fixed inset-0 z-40" onClick={() => setTargetDropdownOpen(false)} />
@@ -942,7 +1025,7 @@ export default function ConnectionsPage() {
                       {/* Scrollable results list */}
                       <div className="overflow-y-auto flex-1 space-y-1 pr-1 max-h-40">
                         {thoughts
-                          .filter(t => t.id !== activeThoughtId && !activeThought.connections.some(c => c.thoughtId === t.id))
+                          .filter(t => t.id !== selectedSourceId && !(thoughts.find(th => th.id === selectedSourceId)?.connections || []).some(c => c.thoughtId === t.id))
                           .filter(t => 
                             t.summary.toLowerCase().includes(targetSearch.toLowerCase()) || 
                             t.category.toLowerCase().includes(targetSearch.toLowerCase())
@@ -967,7 +1050,7 @@ export default function ConnectionsPage() {
                           ))
                         }
                         {thoughts
-                          .filter(t => t.id !== activeThoughtId && !activeThought.connections.some(c => c.thoughtId === t.id))
+                          .filter(t => t.id !== selectedSourceId && !(thoughts.find(th => th.id === selectedSourceId)?.connections || []).some(c => c.thoughtId === t.id))
                           .filter(t => 
                             t.summary.toLowerCase().includes(targetSearch.toLowerCase()) || 
                             t.category.toLowerCase().includes(targetSearch.toLowerCase())
