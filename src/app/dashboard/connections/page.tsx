@@ -651,7 +651,11 @@ export default function ConnectionsPage() {
 
               {/* Draw Center active node */}
               {activeThought && (
-                <g className="cursor-default">
+                <g 
+                  className="cursor-pointer" 
+                  onClick={() => setSelectedNodeId(null)}
+                >
+                  <title>Click to clear selection</title>
                   {/* Outer pulsating backdrop halo */}
                   <circle
                     cx={centerX}
@@ -679,7 +683,7 @@ export default function ConnectionsPage() {
                     fontSize="10px"
                     fontWeight="bold"
                   >
-                    Active Thought
+                    Parent
                   </text>
                   <text
                     x={centerX}
@@ -690,7 +694,7 @@ export default function ConnectionsPage() {
                     fontWeight="bold"
                     className="text-glow-indigo"
                   >
-                    Focus Parent
+                    Active Thought
                   </text>
                 </g>
               )}
