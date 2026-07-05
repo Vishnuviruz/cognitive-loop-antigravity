@@ -17,7 +17,11 @@ import {
   X,
   Sliders,
   Layers,
-  Settings
+  Settings,
+  ChevronDown,
+  ChevronUp,
+  Briefcase,
+  AlertCircle
 } from 'lucide-react';
 import { ClusterControls } from './ClusterControls';
 
@@ -42,13 +46,23 @@ export default function ConnectionsPage() {
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeThoughtId, setActiveThoughtId] = useState<string | null>(null);
-  const [hoveredNode, setHoveredNode] = useState<Thought | null>(null);
+  
+  // Selection state for click-based node details
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   
   // Custom states for Sprint 1
   const [isClustered, setIsClustered] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5); // default to 5 to match ClusterControls
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Expandable arrow state
+  const [isConnectionExpanded, setIsConnectionExpanded] = useState(false);
+  
+  // Task creation states
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskPriority, setTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [taskSuccessMessage, setTaskSuccessMessage] = useState('');
   
   // Modal states
   const [showCreateLinkModal, setShowCreateLinkModal] = useState(false);
@@ -135,6 +149,7 @@ export default function ConnectionsPage() {
         const remaining = thoughts.filter(t => t.id !== id);
         setThoughts(remaining);
         setIsEditingActiveThought(false);
+        setSelectedNodeId(null);
         if (remaining.length > 0) {
           setActiveThoughtId(remaining[0].id);
         } else {
@@ -177,7 +192,7 @@ export default function ConnectionsPage() {
       });
       if (res.ok) {
         await fetchThoughts();
-        setHoveredNode(null);
+        setSelectedNodeId(null);
       }
     } catch (err) {
       console.error('Failed to delete relationship:', err);
@@ -200,6 +215,29 @@ export default function ConnectionsPage() {
       }
     } catch (err) {
       console.error('Failed to update relationship score:', err);
+    }
+  };
+
+  // Create Task linked to a thought
+  const handleCreateTask = async (thoughtId: string) => {
+    if (!taskTitle.trim()) return;
+    try {
+      const res = await fetch('/api/action-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          thoughtId,
+          title: taskTitle,
+          priority: taskPriority,
+        }),
+      });
+      if (res.ok) {
+        setTaskSuccessMessage('Task created successfully! Check Action Center.');
+        setTaskTitle('');
+        setTimeout(() => setTaskSuccessMessage(''), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to create action item:', err);
     }
   };
 
@@ -249,6 +287,50 @@ export default function ConnectionsPage() {
     ? filteredConnectedNodes // in clustered view, we cluster all filtered nodes
     : filteredConnectedNodes.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  // Find currently selected child node detail
+  const selectedConnection = activeThought?.connections.find(c => c.thoughtId === selectedNodeId);
+  const selectedNodeThought = thoughts.find(t => t.id === selectedNodeId);
+
+  // Calculate dynamic connections insight client-side
+  const connectionInsight = activeThought && selectedNodeThought && selectedConnection
+    ? (() => {
+        const pCat = activeThought.category;
+        const cCat = selectedNodeThought.category;
+        const matchScore = (selectedConnection.score * 100).toFixed(0);
+
+        let details = `This bridges a ${pCat.toLowerCase()} ("${activeThought.summary.substring(0, 30)}...") and a ${cCat.toLowerCase()} ("${selectedNodeThought.summary.substring(0, 30)}...") with a ${matchScore}% correlation.`;
+        let why = `The local AI similarity engine linked these nodes because they share cross-cutting goals and related technical or planning terms.`;
+        let outcome = 'Connecting these nodes helps expose implicit patterns. Fulfilling the connected thought will directly build progress towards the parent focus thought.';
+        let derivation = 'Create an action item for this connection to define explicit tasks on your roadmap.';
+
+        if (pCat === 'Idea' && cCat === 'Goal') {
+          outcome = 'Linking this idea to this goal maps a dream to a clear objective. Achieving the goal validates the idea.';
+          derivation = 'Convert the child goal into action-oriented milestones to begin prototype execution.';
+        } else if (pCat === 'Problem' && cCat === 'Idea') {
+          outcome = 'The child idea presents a potential solution to help resolve this active parent problem.';
+          derivation = 'Draft a proof-of-concept testing plan to verify if the idea successfully addresses the problem constraints.';
+        } else if (pCat === 'Decision' && cCat === 'Reflection') {
+          outcome = 'This reflection provides critical retrospective journal data on a past decision outcome.';
+          derivation = 'Review the decision log outcome notes and update retrospect status to completed.';
+        }
+
+        return { details, why, outcome, derivation };
+      })()
+    : null;
+
+  // Handle single node click (selection)
+  const handleNodeClick = (thoughtId: string) => {
+    setSelectedNodeId(thoughtId);
+    setIsConnectionExpanded(false); // Reset expand state when switching nodes
+  };
+
+  // Handle double click (re-center)
+  const handleNodeDoubleClick = (thoughtId: string) => {
+    setActiveThoughtId(thoughtId);
+    setSelectedNodeId(null);
+    setIsEditingActiveThought(false);
+  };
+
   // Width & height of the SVG viewport
   const width = 600;
   const height = 450;
@@ -265,7 +347,7 @@ export default function ConnectionsPage() {
             <Network className="w-8 h-8 text-indigo-400" /> Organic Mind Map
           </h1>
           <p className="text-zinc-400 text-sm mt-1">
-            A visual, paginated, and cluster-capable mind map of your thoughts. Click on outer nodes to re-center.
+            Explore connections, select related thoughts to inspect, and double-click outer nodes to re-center.
           </p>
         </div>
 
@@ -336,6 +418,11 @@ export default function ConnectionsPage() {
               />
             </div>
 
+            <div className="w-full flex justify-between items-center text-[10px] text-zinc-500 mb-2 px-2">
+              <span className="flex items-center gap-1"><Info className="w-3 h-3 text-indigo-400" /> Click once to select details • Double click to re-center</span>
+              <span className="font-semibold text-zinc-400">{filteredConnectedNodes.length} connections found</span>
+            </div>
+
             <svg 
               viewBox={`0 0 ${width} ${height}`} 
               className="w-full h-auto max-w-[520px]"
@@ -357,7 +444,7 @@ export default function ConnectionsPage() {
                     const nodeX = centerX + radius * Math.cos(angle);
                     const nodeY = centerY + radius * Math.sin(angle);
                     const strokeColor = getCategoryColor(node.category);
-                    const isHovered = hoveredNode?.id === node.thoughtId;
+                    const isSelected = selectedNodeId === node.thoughtId;
 
                     return (
                       <g key={`unclustered-${node.relationshipId}`}>
@@ -368,9 +455,9 @@ export default function ConnectionsPage() {
                           x2={nodeX}
                           y2={nodeY}
                           stroke={strokeColor}
-                          strokeWidth={isHovered ? '3' : '2'}
-                          strokeOpacity={isHovered ? '0.7' : '0.4'}
-                          strokeDasharray={isHovered ? 'none' : '4,4'}
+                          strokeWidth={isSelected ? '4' : '2'}
+                          strokeOpacity={isSelected ? '0.9' : '0.4'}
+                          strokeDasharray={isSelected ? 'none' : '4,4'}
                           className="transition-all duration-300"
                         />
                         {/* Interactive hotspot line */}
@@ -386,26 +473,27 @@ export default function ConnectionsPage() {
                         {/* Orbiting Thought Node */}
                         <g 
                           className="cursor-pointer"
-                          onClick={() => setActiveThoughtId(node.thoughtId)}
-                          onMouseEnter={() => node.fullThought && setHoveredNode(node.fullThought)}
-                          onMouseLeave={() => setHoveredNode(null)}
+                          onClick={() => handleNodeClick(node.thoughtId)}
+                          onDoubleClick={() => handleNodeDoubleClick(node.thoughtId)}
                         >
-                          {/* Outer glow ring on hover */}
-                          <circle
-                            cx={nodeX}
-                            cy={nodeY}
-                            r={isHovered ? 24 : 18}
-                            fill="transparent"
-                            stroke={strokeColor}
-                            strokeWidth="2"
-                            strokeOpacity="0.8"
-                            className="transition-all duration-300"
-                          />
+                          {/* Selected glow ring indicator */}
+                          {isSelected && (
+                            <circle
+                              cx={nodeX}
+                              cy={nodeY}
+                              r={24}
+                              fill="none"
+                              stroke={strokeColor}
+                              strokeWidth="3"
+                              strokeOpacity="0.8"
+                              className="animate-pulse"
+                            />
+                          )}
                           {/* Main Node body */}
                           <circle
                             cx={nodeX}
                             cy={nodeY}
-                            r={isHovered ? 18 : 14}
+                            r={isSelected ? 18 : 14}
                             fill="#0d0c15"
                             stroke={strokeColor}
                             strokeWidth="3"
@@ -433,10 +521,10 @@ export default function ConnectionsPage() {
                             x={nodeX}
                             y={nodeY + (nodeY > centerY ? 32 : -24)}
                             textAnchor="middle"
-                            fill="#9ca3af"
+                            fill={isSelected ? '#ffffff' : '#9ca3af'}
                             fontSize="10px"
                             fontWeight="600"
-                            className="pointer-events-none select-none transition-all fill-zinc-400 hover:fill-white"
+                            className="pointer-events-none select-none transition-all"
                           >
                             {node.summary.length > 20 
                               ? `${node.summary.substring(0, 18)}...` 
@@ -506,7 +594,7 @@ export default function ConnectionsPage() {
                           const childOrbitRadius = 45;
                           const childX = hubX + childOrbitRadius * Math.cos(childAngle);
                           const childY = hubY + childOrbitRadius * Math.sin(childAngle);
-                          const isHovered = hoveredNode?.id === node.thoughtId;
+                          const isSelected = selectedNodeId === node.thoughtId;
 
                           return (
                             <g key={`cluster-child-${node.relationshipId}`}>
@@ -525,14 +613,13 @@ export default function ConnectionsPage() {
                               {/* Child Node */}
                               <g
                                 className="cursor-pointer"
-                                onClick={() => setActiveThoughtId(node.thoughtId)}
-                                onMouseEnter={() => node.fullThought && setHoveredNode(node.fullThought)}
-                                onMouseLeave={() => setHoveredNode(null)}
+                                onClick={() => handleNodeClick(node.thoughtId)}
+                                onDoubleClick={() => handleNodeDoubleClick(node.thoughtId)}
                               >
                                 <circle
                                   cx={childX}
                                   cy={childY}
-                                  r={isHovered ? 12 : 9}
+                                  r={isSelected ? 14 : 9}
                                   fill="#0d0c15"
                                   stroke={hubColor}
                                   strokeWidth="2"
@@ -543,10 +630,10 @@ export default function ConnectionsPage() {
                                   x={childX}
                                   y={childY + (childY > hubY ? 18 : -14)}
                                   textAnchor="middle"
-                                  fill="#9ca3af"
+                                  fill={isSelected ? '#ffffff' : '#9ca3af'}
                                   fontSize="8px"
                                   fontWeight="500"
-                                  className="pointer-events-none select-none transition-all fill-zinc-400 hover:fill-white"
+                                  className="pointer-events-none select-none transition-all"
                                 >
                                   {node.summary.length > 12 
                                     ? `${node.summary.substring(0, 10)}...` 
@@ -564,11 +651,7 @@ export default function ConnectionsPage() {
 
               {/* Draw Center active node */}
               {activeThought && (
-                <g 
-                  className="cursor-default"
-                  onMouseEnter={() => setHoveredNode(activeThought)}
-                  onMouseLeave={() => setHoveredNode(null)}
-                >
+                <g className="cursor-default">
                   {/* Outer pulsating backdrop halo */}
                   <circle
                     cx={centerX}
@@ -593,21 +676,21 @@ export default function ConnectionsPage() {
                     y={centerY + 4}
                     textAnchor="middle"
                     fill="white"
-                    fontSize="11px"
+                    fontSize="10px"
                     fontWeight="bold"
                   >
-                    Brain
+                    Active Thought
                   </text>
                   <text
                     x={centerX}
                     y={centerY + 46}
                     textAnchor="middle"
                     fill="white"
-                    fontSize="11px"
+                    fontSize="10px"
                     fontWeight="bold"
                     className="text-glow-indigo"
                   >
-                    Active Node
+                    Focus Parent
                   </text>
                 </g>
               )}
@@ -617,145 +700,249 @@ export default function ConnectionsPage() {
           {/* Node Inspector Details (Right 5 Columns) */}
           <div className="lg:col-span-5 space-y-6">
             
-            {/* Active Node Detail Card */}
+            {/* Connection Overview (First Box - Top Right) */}
             {activeThought && (
               <div className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md space-y-4 relative">
                 
                 {/* Header operations */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span 
-                      className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                      style={{ 
-                        backgroundColor: `${getCategoryColor(activeThought.category)}20`,
-                        color: getCategoryColor(activeThought.category),
-                        border: `1px solid ${getCategoryColor(activeThought.category)}30`
-                      }}
-                    >
-                      {activeThought.category}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 font-medium flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {new Date(activeThought.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
+                  <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                    Connection Overview
+                  </h3>
 
-                  {/* Actions toolbar */}
+                  {/* Actions & Expand toolbar */}
                   <div className="flex items-center gap-2">
-                    {!isEditingActiveThought ? (
+                    {/* Expand Arrow when a child is selected */}
+                    {selectedNodeThought && (
+                      <button
+                        onClick={() => setIsConnectionExpanded(!isConnectionExpanded)}
+                        className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
+                        title={isConnectionExpanded ? 'Collapse Insight' : 'Expand Insight Details'}
+                      >
+                        {isConnectionExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-indigo-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-zinc-400" />
+                        )}
+                      </button>
+                    )}
+
+                    {!selectedNodeThought && (
                       <>
-                        <button
-                          onClick={() => setIsEditingActiveThought(true)}
-                          className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
-                          title="Edit Thought"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteThought(activeThought.id)}
-                          className="p-1 hover:bg-red-950/40 rounded text-zinc-500 hover:text-red-400 transition-colors"
-                          title="Delete Thought"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleUpdateThought(activeThought.id)}
-                          className="p-1 hover:bg-emerald-950/40 rounded text-emerald-400 transition-colors"
-                          title="Save Changes"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setIsEditingActiveThought(false)}
-                          className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
-                          title="Cancel"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                        {!isEditingActiveThought ? (
+                          <>
+                            <button
+                              onClick={() => setIsEditingActiveThought(true)}
+                              className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
+                              title="Edit Thought"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteThought(activeThought.id)}
+                              className="p-1 hover:bg-red-950/40 rounded text-zinc-500 hover:text-red-400 transition-colors"
+                              title="Delete Thought"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleUpdateThought(activeThought.id)}
+                              className="p-1 hover:bg-emerald-950/40 rounded text-emerald-400 transition-colors"
+                              title="Save Changes"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setIsEditingActiveThought(false)}
+                              className="p-1 hover:bg-zinc-800/60 rounded text-zinc-400 hover:text-white transition-colors"
+                              title="Cancel"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
                 </div>
 
-                {/* Body details / Edit modes */}
+                {/* Displaying Active Node Details or Parent-Child Overview */}
                 <div className="space-y-3">
-                  {isEditingActiveThought ? (
-                    <div className="space-y-3 text-xs">
-                      <div>
-                        <label className="text-zinc-500 font-bold block mb-1">Category</label>
-                        <select
-                          value={editCategory}
-                          onChange={(e) => setEditCategory(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-white"
-                        >
-                          {['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'].map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
+                  {selectedNodeThought && selectedConnection ? (
+                    // Parent-Child Relation Overview Mode
+                    <div className="space-y-3.5 text-xs">
+                      <div className="bg-indigo-950/10 border border-indigo-900/30 p-3 rounded-xl space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-indigo-400 tracking-wider">Parent Focus Node</label>
+                        <p className="text-zinc-200 font-semibold truncate">{activeThought.summary}</p>
                       </div>
 
-                      <div>
-                        <label className="text-zinc-500 font-bold block mb-1">Summary</label>
-                        <input
-                          type="text"
-                          value={editSummary}
-                          onChange={(e) => setEditSummary(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500"
-                        />
+                      <div className="flex justify-center py-1">
+                        <div className="h-6 w-0.5 bg-dashed border-l border-zinc-800" />
                       </div>
 
-                      <div>
-                        <label className="text-zinc-500 font-bold block mb-1">Content Details</label>
-                        <textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          rows={4}
-                          className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500 resize-none"
-                        />
+                      <div className="bg-emerald-950/10 border border-emerald-900/30 p-3 rounded-xl space-y-1">
+                        <label className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider">Connected Child Node</label>
+                        <p className="text-zinc-200 font-semibold truncate">{selectedNodeThought.summary}</p>
                       </div>
+
+                      <div className="flex items-center justify-between border-t border-zinc-900 pt-3 text-[10px] text-zinc-500 font-mono">
+                        <span>Connection Type: <strong className="text-zinc-300">Similarity Edge</strong></span>
+                        <span>Match Strength: <strong className="text-indigo-400">{(selectedConnection.score * 100).toFixed(0)}%</strong></span>
+                      </div>
+
+                      {/* Expandable Section Details */}
+                      {isConnectionExpanded && connectionInsight && (
+                        <div className="space-y-4 pt-3 border-t border-zinc-900 animate-fadeIn">
+                          
+                          {/* AI Connections Insight */}
+                          <div className="space-y-2 bg-zinc-900/40 p-3.5 rounded-xl border border-zinc-850">
+                            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <Sparkles className="w-3 h-3 text-indigo-400" /> JARVIS Synthesis Notes
+                            </label>
+                            <p className="text-zinc-300 text-[11px] leading-relaxed select-text">{connectionInsight.details}</p>
+                            <p className="text-zinc-400 text-[11px] leading-relaxed pt-1.5 select-text"><strong>Analysis:</strong> {connectionInsight.outcome}</p>
+                            <p className="text-zinc-500 text-[10px] leading-relaxed pt-1.5 italic select-text"><strong>Actionable:</strong> {connectionInsight.derivation}</p>
+                          </div>
+
+                          {/* Task Creation form */}
+                          <div className="space-y-2 bg-indigo-950/10 border border-indigo-900/20 p-3.5 rounded-xl">
+                            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <Briefcase className="w-3.5 h-3.5" /> Derive Task & Sync to Action Center
+                            </label>
+                            
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Task title (e.g. Prototype verification...)"
+                                value={taskTitle}
+                                onChange={(e) => setTaskTitle(e.target.value)}
+                                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+                              />
+                              <select
+                                value={taskPriority}
+                                onChange={(e) => setTaskPriority(e.target.value as any)}
+                                className="bg-zinc-900 border border-zinc-800 rounded-lg px-1 py-1 text-xs text-zinc-400 focus:outline-none"
+                              >
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                              </select>
+                              <button
+                                onClick={() => handleCreateTask(selectedNodeThought.id)}
+                                disabled={!taskTitle.trim()}
+                                className="px-3 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40"
+                              >
+                                Add
+                              </button>
+                            </div>
+
+                            {taskSuccessMessage && (
+                              <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                                <Check className="w-3.5 h-3.5" /> {taskSuccessMessage}
+                              </div>
+                            )}
+                          </div>
+
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="space-y-1.5">
-                      <h3 className="text-md font-bold text-white leading-snug">
-                        {activeThought.summary}
-                      </h3>
-                      <p className="text-zinc-400 text-xs leading-relaxed max-h-[140px] overflow-y-auto pr-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60 select-text">
-                        {activeThought.content}
-                      </p>
-                    </div>
+                    // Regular Active Node Details mode
+                    <>
+                      {isEditingActiveThought ? (
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <label className="text-zinc-500 font-bold block mb-1">Category</label>
+                            <select
+                              value={editCategory}
+                              onChange={(e) => setEditCategory(e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white"
+                            >
+                              {['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'].map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-zinc-500 font-bold block mb-1">Summary</label>
+                            <input
+                              type="text"
+                              value={editSummary}
+                              onChange={(e) => setEditSummary(e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-zinc-500 font-bold block mb-1">Content Details</label>
+                            <textarea
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              rows={4}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span 
+                              className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                              style={{ 
+                                backgroundColor: `${getCategoryColor(activeThought.category)}20`,
+                                color: getCategoryColor(activeThought.category),
+                                border: `1px solid ${getCategoryColor(activeThought.category)}30`
+                              }}
+                            >
+                              {activeThought.category}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 font-medium flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {new Date(activeThought.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="space-y-1.5">
+                            <h3 className="text-md font-bold text-white leading-snug">
+                              {activeThought.summary}
+                            </h3>
+                            <p className="text-zinc-400 text-xs leading-relaxed max-h-[140px] overflow-y-auto pr-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60 select-text">
+                              {activeThought.content}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Hover Node details / Connection actions */}
+            {/* Selected Thought Details (Second Box - Middle Right) */}
             <div className="glass-panel rounded-2xl p-6 border-zinc-800/80 shadow-md">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-400" /> Connection Details
+                <Sparkles className="w-4 h-4 text-indigo-400" /> Selected Thought Details
               </h3>
 
-              {hoveredNode ? (
+              {selectedNodeThought ? (
                 <div className="space-y-3 text-xs">
                   <div className="flex items-center justify-between">
                     <span 
                       className="px-2 py-0.5 rounded font-bold text-[9px]"
                       style={{ 
-                        backgroundColor: `${getCategoryColor(hoveredNode.category)}20`,
-                        color: getCategoryColor(hoveredNode.category)
+                        backgroundColor: `${getCategoryColor(selectedNodeThought.category)}20`,
+                        color: getCategoryColor(selectedNodeThought.category)
                       }}
                     >
-                      {hoveredNode.category}
+                      {selectedNodeThought.category}
                     </span>
 
-                    {/* Show score editing or details */}
-                    {activeThought && (() => {
-                      const rel = activeThought.connections.find(c => c.thoughtId === hoveredNode.id);
-                      if (!rel) return null;
-
-                      const isEditingRel = editingRelationshipId === rel.relationshipId;
+                    {/* Show connection score edit / delete options */}
+                    {activeThought && selectedConnection && (() => {
+                      const isEditingRel = editingRelationshipId === selectedConnection.relationshipId;
 
                       return (
                         <div className="flex items-center gap-2">
@@ -773,14 +960,14 @@ export default function ConnectionsPage() {
                               />
                               <span className="font-mono text-white text-[10px] font-bold">{(editRelScore * 100).toFixed(0)}%</span>
                               <button 
-                                onClick={() => handleUpdateRelationshipScore(rel.relationshipId)}
-                                className="text-emerald-400 p-0.5 hover:bg-zinc-800/80 rounded"
+                                onClick={() => handleUpdateRelationshipScore(selectedConnection.relationshipId)}
+                                className="text-emerald-400 p-0.5 hover:bg-zinc-800/80 rounded cursor-pointer"
                               >
                                 <Check className="w-3 h-3" />
                               </button>
                               <button 
                                 onClick={() => setEditingRelationshipId(null)}
-                                className="text-zinc-500 p-0.5 hover:bg-zinc-800/80 rounded"
+                                className="text-zinc-500 p-0.5 hover:bg-zinc-800/80 rounded cursor-pointer"
                               >
                                 <X className="w-3 h-3" />
                               </button>
@@ -788,23 +975,23 @@ export default function ConnectionsPage() {
                           ) : (
                             <div className="flex items-center gap-1.5">
                               <span className="font-mono text-zinc-400">
-                                Match: <strong className="text-indigo-400 font-bold">{(rel.score * 100).toFixed(0)}%</strong>
+                                Match: <strong className="text-indigo-400 font-bold">{(selectedConnection.score * 100).toFixed(0)}%</strong>
                               </span>
                               {/* Edit icon for relationship */}
                               <button
                                 onClick={() => {
-                                  setEditingRelationshipId(rel.relationshipId);
-                                  setEditRelScore(rel.score);
+                                  setEditingRelationshipId(selectedConnection.relationshipId);
+                                  setEditRelScore(selectedConnection.score);
                                 }}
-                                className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white"
+                                className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white cursor-pointer"
                                 title="Edit Match Strength"
                               >
                                 <Sliders className="w-3 h-3" />
                               </button>
                               {/* Disconnect icon */}
                               <button
-                                onClick={() => handleDeleteRelationship(rel.relationshipId)}
-                                className="p-1 hover:bg-red-950/30 rounded text-zinc-650 hover:text-red-400"
+                                onClick={() => handleDeleteRelationship(selectedConnection.relationshipId)}
+                                className="p-1 hover:bg-red-950/30 rounded text-zinc-650 hover:text-red-400 cursor-pointer"
                                 title="Disconnect Link"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -817,13 +1004,13 @@ export default function ConnectionsPage() {
                   </div>
                   
                   <div className="space-y-1 bg-black/10 p-3 rounded-lg border border-zinc-900/60">
-                    <p className="font-bold text-zinc-200">{hoveredNode.summary}</p>
-                    <p className="text-zinc-500 text-[11px] leading-relaxed line-clamp-3 select-text">{hoveredNode.content}</p>
+                    <p className="font-bold text-zinc-200">{selectedNodeThought.summary}</p>
+                    <p className="text-zinc-500 text-[11px] leading-relaxed line-clamp-3 select-text">{selectedNodeThought.content}</p>
                   </div>
                 </div>
               ) : (
-                <div className="text-zinc-500 text-xs py-2 text-center">
-                  Hover over any node in the graph to display its summary and similarity match scores.
+                <div className="text-zinc-500 text-xs py-2 text-center flex items-center justify-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-zinc-600" /> Click any orbiting node in the map to display its details here.
                 </div>
               )}
             </div>
@@ -839,6 +1026,7 @@ export default function ConnectionsPage() {
                     key={t.id}
                     onClick={() => {
                       setActiveThoughtId(t.id);
+                      setSelectedNodeId(null);
                       setIsEditingActiveThought(false);
                     }}
                     className={`w-full text-left p-2 rounded-lg text-xs transition-colors flex items-center justify-between border cursor-pointer ${
@@ -890,13 +1078,12 @@ export default function ConnectionsPage() {
                 <Network className="w-5 h-5 text-indigo-400" /> Add Connection Link
               </h3>
               <p className="text-xs text-zinc-400 mt-1">
-                Connect the active thought to another thought in your database.
+                Connect a parent source thought to a target child thought.
               </p>
             </div>
 
             <div className="space-y-4 text-xs">
               
-
               {/* Source Thought Selector */}
               <div className="space-y-1 relative">
                 <label className="text-zinc-500 font-bold block">Source Thought</label>
@@ -1087,14 +1274,14 @@ export default function ConnectionsPage() {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setShowCreateLinkModal(false)}
-                className="px-4 py-2 border border-zinc-800 hover:bg-zinc-900 text-zinc-400 rounded-xl text-xs font-semibold transition-colors"
+                className="px-4 py-2 border border-zinc-800 hover:bg-zinc-900 text-zinc-400 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateRelationship}
                 disabled={!selectedTargetId}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:shadow-indigo-500/20"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:shadow-indigo-500/20 cursor-pointer"
               >
                 Create Connection
               </button>
