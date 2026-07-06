@@ -14,64 +14,79 @@ export async function GET() {
       return NextResponse.json({ error: 'unauthorized', message: 'Unauthorized access' }, { status: 401 });
     }
 
+    // Retrieve all of user's current thoughts
+    const userThoughts = await db.query.thoughts.findMany({
+      where: eq(thoughts.userId, user.id),
+    });
+
+    // If user has less than 3 thoughts, wipe all loops and return empty array
+    if (userThoughts.length < 3) {
+      await db.delete(loops).where(eq(loops.userId, user.id));
+      return NextResponse.json({ loops: [] });
+    }
+
+    const existingThoughtIds = new Set(userThoughts.map((t) => t.id));
+
     let storedLoops = await db.query.loops.findMany({
       where: eq(loops.userId, user.id),
       orderBy: desc(loops.createdAt),
     });
 
-    // If no loops are stored yet, try to auto-calculate once if user has thoughts
+    // If no loops are stored yet, try to auto-calculate once
     if (storedLoops.length === 0) {
-      const userThoughts = await db.query.thoughts.findMany({
-        where: eq(thoughts.userId, user.id),
-        orderBy: desc(thoughts.createdAt),
-        limit: 50,
-      });
+      console.log(`Auto-triggering loop detection for user: ${user.email}`);
+      const detected = await detectLoops(
+        userThoughts.map((t) => ({ id: t.id, content: t.content, createdAt: t.createdAt }))
+      );
 
-      if (userThoughts.length >= 3) {
-        console.log(`Auto-triggering loop detection for user: ${user.email}`);
-        const detected = await detectLoops(
-          userThoughts.map((t) => ({ id: t.id, content: t.content, createdAt: t.createdAt }))
-        );
+      if (detected.length > 0) {
+        const insertData = detected.map((l) => ({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          theme: l.theme,
+          description: l.description,
+          thoughtIds: JSON.stringify(l.thoughtIds),
+          createdAt: Date.now(),
+        }));
 
-        if (detected.length > 0) {
-          const insertData = detected.map((l) => ({
-            id: crypto.randomUUID(),
-            userId: user.id,
-            theme: l.theme,
-            description: l.description,
-            thoughtIds: JSON.stringify(l.thoughtIds),
-            createdAt: Date.now(),
-          }));
-
-          await db.insert(loops).values(insertData);
-        } else {
-          // Store a system marker loop to cache the "no loops detected" state and avoid hitting rate limits
-          await db.insert(loops).values({
-            id: crypto.randomUUID(),
-            userId: user.id,
-            theme: '__system_no_loops__',
-            description: 'No loops detected yet',
-            thoughtIds: JSON.stringify([]),
-            createdAt: Date.now(),
-          });
-        }
-        
-        // Refetch stored loops (either actual ones or the marker)
-        storedLoops = await db.query.loops.findMany({
-          where: eq(loops.userId, user.id),
-          orderBy: desc(loops.createdAt),
+        await db.insert(loops).values(insertData);
+      } else {
+        // Store a system marker loop to cache the "no loops detected" state and avoid hitting rate limits
+        await db.insert(loops).values({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          theme: '__system_no_loops__',
+          description: 'No loops detected yet',
+          thoughtIds: JSON.stringify([]),
+          createdAt: Date.now(),
         });
+      }
+      
+      // Refetch stored loops (either actual ones or the marker)
+      storedLoops = await db.query.loops.findMany({
+        where: eq(loops.userId, user.id),
+        orderBy: desc(loops.createdAt),
+      });
+    }
+
+    // Validate loops reference integrity and prune obsolete loops
+    const validLoops = [];
+    for (const l of storedLoops) {
+      if (l.theme === '__system_no_loops__') continue;
+      const ids = JSON.parse(l.thoughtIds) as string[];
+      const validIds = ids.filter((id) => existingThoughtIds.has(id));
+      if (validIds.length >= 2) {
+        validLoops.push({
+          ...l,
+          thoughtIds: validIds,
+        });
+      } else {
+        // Delete this loop from the database because it no longer has enough valid references
+        await db.delete(loops).where(eq(loops.id, l.id));
       }
     }
 
-    const formattedLoops = storedLoops
-      .filter((l) => l.theme !== '__system_no_loops__')
-      .map((l) => ({
-        ...l,
-        thoughtIds: JSON.parse(l.thoughtIds) as string[],
-      }));
-
-    return NextResponse.json({ loops: formattedLoops });
+    return NextResponse.json({ loops: validLoops });
   } catch (error) {
     console.error('Error fetching loops:', error);
     return NextResponse.json(

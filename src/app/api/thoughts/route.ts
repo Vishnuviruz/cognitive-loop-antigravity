@@ -251,6 +251,7 @@ export async function POST(request: Request) {
           description: item.description || null,
           priority: item.priority || 'medium',
           status: 'pending',
+          category: analysis.category,
           dueDate: null,
           completedAt: null,
           createdAt: Date.now(),
