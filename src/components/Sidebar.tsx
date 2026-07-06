@@ -15,7 +15,8 @@ import {
   LogOut, 
   Menu, 
   X,
-  User
+  User,
+  Settings
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -36,6 +37,7 @@ export default function Sidebar({ user }: SidebarProps) {
     { name: 'Timeline & Capture', href: '/dashboard', icon: Activity },
     { name: 'Connections Graph', href: '/dashboard/connections', icon: Network },
     { name: 'Action Center', href: '/dashboard/actions', icon: CheckSquare },
+    { name: 'Customise Settings', href: '/dashboard/settings', icon: Settings },
   ];
 
   const handleLogout = async () => {
@@ -133,7 +135,7 @@ export default function Sidebar({ user }: SidebarProps) {
       </aside>
 
       {/* Mobile/Tablet Top Bar — visible below lg breakpoint */}
-      <div className="lg:hidden flex items-center justify-between glass-panel border-b border-zinc-800/50 px-4 py-3 sticky top-0 z-40 w-full">
+      <div className="lg:hidden flex items-center justify-between bg-[#050409]/95 backdrop-blur-md border-b border-zinc-800/80 px-4 py-3 fixed top-0 left-0 right-0 z-50 h-[60px]">
         <div className="flex items-center gap-2">
           <BrainCircuit className="w-6 h-6 text-indigo-400" />
           <span className="font-bold text-white text-md tracking-wide">Cognitive Loop</span>

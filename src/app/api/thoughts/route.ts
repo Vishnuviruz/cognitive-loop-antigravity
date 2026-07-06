@@ -60,6 +60,11 @@ export async function GET(request: Request) {
       where: eq(decisions.userId, user.id),
     });
 
+    // Retrieve all action items to map action lists
+    const userActionItems = await db.query.actionItems.findMany({
+      where: eq(actionItems.userId, user.id),
+    });
+
     // Retrieve all relationships for this user's thoughts to map connections
     const userRelations = await db
       .select({
@@ -72,7 +77,7 @@ export async function GET(request: Request) {
       .innerJoin(thoughts, eq(relationships.thoughtId1, thoughts.id))
       .where(eq(thoughts.userId, user.id));
 
-    // Map relations and decisions to their respective thoughts
+    // Map relations, decisions, and action items to their respective thoughts
     const thoughtsWithRelations = userThoughts.map((t) => {
       // Find all connected thought IDs
       const connections = userRelations
@@ -90,12 +95,14 @@ export async function GET(request: Request) {
         });
 
       const decisionRecord = userDecisions.find((d) => d.thoughtId === t.id);
+      const associatedActions = userActionItems.filter((item) => item.thoughtId === t.id);
 
       return {
         ...t,
         tags: JSON.parse(t.tags) as string[],
         connections,
         decision: decisionRecord || null,
+        actionItems: associatedActions,
       };
     });
 
@@ -118,15 +125,33 @@ export async function POST(request: Request) {
     }
 
     let content = '';
+    let customCategories: string[] | undefined;
+    let customTags: string[] | undefined;
+    let customPriorities: string[] | undefined;
+    let customStatuses: string[] | undefined;
     const contentType = request.headers.get('content-type') || '';
 
     if (contentType.includes('application/json')) {
       const body = await request.json();
       content = body.content?.trim();
+      customCategories = body.customCategories;
+      customTags = body.customTags;
+      customPriorities = body.customPriorities;
+      customStatuses = body.customStatuses;
     } else if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       const textContent = formData.get('content') as string;
       const audioFile = formData.get('audio') as File;
+
+      const catsVal = formData.get('customCategories') as string;
+      const tagsVal = formData.get('customTags') as string;
+      const priVal = formData.get('customPriorities') as string;
+      const statVal = formData.get('customStatuses') as string;
+      
+      if (catsVal) customCategories = JSON.parse(catsVal);
+      if (tagsVal) customTags = JSON.parse(tagsVal);
+      if (priVal) customPriorities = JSON.parse(priVal);
+      if (statVal) customStatuses = JSON.parse(statVal);
 
       if (audioFile) {
         // Read file data into Buffer for inline transmission to Groq API
@@ -154,10 +179,10 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('Initiating AI analysis pipeline for thought content...');
+    console.log('Initiating AI analysis pipeline for thought content with custom constraints...');
     // 1. Run AI pipelines in parallel (Analysis & Embeddings)
     const [analysis, embedding] = await Promise.all([
-      analyzeThought(content, user.name ?? undefined),
+      analyzeThought(content, user.name ?? undefined, customCategories, customTags, customPriorities, customStatuses),
       getEmbedding(content),
     ]);
 

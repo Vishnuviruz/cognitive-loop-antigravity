@@ -102,15 +102,16 @@ export const thoughtGroups = sqliteTable('thought_groups', {
   createdAt: integer('created_at').notNull(),
 });
 
-// Action items extracted from thoughts by JARVIS
+// Action items extracted from thoughts by JARVIS or manually created
 export const actionItems = sqliteTable('action_items', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  thoughtId: text('thought_id').notNull().references(() => thoughts.id, { onDelete: 'cascade' }),
+  thoughtId: text('thought_id').references(() => thoughts.id, { onDelete: 'cascade' }), // Nullable for manually created tasks
   title: text('title').notNull(),
   description: text('description'),
   priority: text('priority').notNull(), // 'high', 'medium', 'low'
   status: text('status').notNull(), // 'pending', 'in_progress', 'completed', 'dismissed'
+  category: text('category').default('General'), // Category/Tag for tasks (e.g. Work, Personal, health)
   dueDate: integer('due_date'),
   completedAt: integer('completed_at'),
   createdAt: integer('created_at').notNull(),

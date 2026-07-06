@@ -88,20 +88,39 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
 export interface ActionItemExtract {
   title: string;
   description: string;
-  priority: 'high' | 'medium' | 'low';
+  priority: string;
 }
 
 export interface ThoughtAnalysis {
   summary: string;
   tags: string[];
-  category: 'Idea' | 'Goal' | 'Reflection' | 'Learning' | 'Decision' | 'Problem' | 'Opportunity';
+  category: string;
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   jarvisInsight: string;
   actionItems: ActionItemExtract[];
 }
 
-export async function analyzeThought(text: string, userName?: string): Promise<ThoughtAnalysis> {
+export async function analyzeThought(
+  text: string, 
+  userName?: string,
+  customCategories?: string[],
+  customTags?: string[],
+  customPriorities?: string[],
+  customStatuses?: string[]
+): Promise<ThoughtAnalysis> {
   const name = userName && userName !== 'Demo Explorer' ? userName : 'Vishnu';
+
+  const categoriesList = customCategories && customCategories.length > 0 
+    ? customCategories 
+    : ['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'];
+    
+  const tagsList = customTags && customTags.length > 0 
+    ? customTags 
+    : ['saas', 'ai', 'notes', 'second-brain', 'engineering', 'database', 'ux', 'mobile', 'web', 'productivity', 'coaching'];
+
+  const prioritiesList = customPriorities && customPriorities.length > 0
+    ? customPriorities.map(p => p.toLowerCase())
+    : ['high', 'medium', 'low'];
 
   // Offline Demo Mode fallback
   if (!ai) {
@@ -109,13 +128,13 @@ export async function analyzeThought(text: string, userName?: string): Promise<T
     const lower = text.toLowerCase();
     
     // Categorize based on keywords
-    let category: 'Idea' | 'Goal' | 'Reflection' | 'Learning' | 'Decision' | 'Problem' | 'Opportunity' = 'Reflection';
-    if (lower.includes('idea') || lower.includes('build') || lower.includes('create') || lower.includes('concept')) category = 'Idea';
-    else if (lower.includes('goal') || lower.includes('plan') || lower.includes('target') || lower.includes('aim')) category = 'Goal';
-    else if (lower.includes('problem') || lower.includes('bug') || lower.includes('error') || lower.includes('fail') || lower.includes('stress')) category = 'Problem';
-    else if (lower.includes('learn') || lower.includes('course') || lower.includes('read') || lower.includes('study')) category = 'Learning';
-    else if (lower.includes('decide') || lower.includes('decision') || lower.includes('chose') || lower.includes('resolved')) category = 'Decision';
-    else if (lower.includes('opportunity') || lower.includes('market') || lower.includes('explore') || lower.includes('potential')) category = 'Opportunity';
+    let category = categoriesList[0];
+    for (const cat of categoriesList) {
+      if (lower.includes(cat.toLowerCase())) {
+        category = cat;
+        break;
+      }
+    }
 
     // Sentiment based on keywords
     let sentiment: 'Positive' | 'Neutral' | 'Negative' = 'Neutral';
@@ -123,9 +142,10 @@ export async function analyzeThought(text: string, userName?: string): Promise<T
     else if (lower.includes('sad') || lower.includes('worry') || lower.includes('concern') || lower.includes('bad') || lower.includes('fail') || lower.includes('friction')) sentiment = 'Negative';
 
     // Extract tags
-    const vocab = ['saas', 'ai', 'notes', 'second-brain', 'engineering', 'database', 'ux', 'mobile', 'web', 'productivity', 'coaching'];
-    const matched = vocab.filter((word) => lower.includes(word));
-    if (matched.length < 3) matched.push('thoughts', 'general');
+    const matched = tagsList.filter((word) => lower.includes(word.toLowerCase()));
+    if (matched.length === 0) {
+      matched.push(tagsList[0] || 'general');
+    }
     const tags = matched.slice(0, 4);
 
     // Create Summary
@@ -138,14 +158,14 @@ export async function analyzeThought(text: string, userName?: string): Promise<T
 
     // Extract demo action items based on category
     const actionItems: ActionItemExtract[] = [];
-    if (category === 'Idea') {
-      actionItems.push({ title: 'Validate this idea with market research', description: 'Research competitors and target audience for this concept.', priority: 'high' });
-    } else if (category === 'Goal') {
-      actionItems.push({ title: 'Break this goal into milestones', description: 'Define measurable checkpoints to track progress.', priority: 'high' });
-    } else if (category === 'Problem') {
-      actionItems.push({ title: 'Investigate root cause', description: 'Analyze what is causing this problem and identify solutions.', priority: 'high' });
-    } else if (category === 'Decision') {
-      actionItems.push({ title: 'Evaluate decision outcomes', description: 'Set a review date to assess how this decision played out.', priority: 'medium' });
+    const pVal = prioritiesList.includes('high') ? 'high' : prioritiesList[0] || 'medium';
+    
+    if (category.toLowerCase() === 'idea') {
+      actionItems.push({ title: 'Validate this idea with market research', description: 'Research competitors and target audience for this concept.', priority: pVal });
+    } else if (category.toLowerCase() === 'goal') {
+      actionItems.push({ title: 'Break this goal into milestones', description: 'Define measurable checkpoints to track progress.', priority: pVal });
+    } else {
+      actionItems.push({ title: 'Review thought implications', description: 'Detail action steps matching this workspace log.', priority: pVal });
     }
 
     return {
@@ -169,18 +189,23 @@ export async function analyzeThought(text: string, userName?: string): Promise<T
            
 Address the user directly by their first name: "${name}". Do NOT use generic honorifics like "Sir".
 
+CRITICAL CONSTRAINTS:
+1. Category: You MUST select the thought category from the following user-configured list ONLY: ${JSON.stringify(categoriesList)}. Do not select any category outside this list.
+2. Tags: You MUST select tags from the following user-configured list ONLY: ${JSON.stringify(tagsList)}. Select between 1 to 5 tags from this list that represent the thought. If none fit perfectly, return an empty tags array [].
+3. Action Item Priority: For any extracted action items, you MUST select the priority level from the following user-configured list ONLY: ${JSON.stringify(prioritiesList)}.
+
 You must respond with a JSON object matching this structure:
 {
   "summary": "Concise summary of the thought written in the second person, addressing the user directly (e.g. \\"You outlined a plan to build...\\" or \\"You expressed a decision to...\\"). Never use third person like \\"the user\\".",
-  "tags": ["3 to 5 lowercase, single-word tags representing subjects, technologies, or themes"],
-  "category": "One of: 'Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'",
+  "tags": ["extracted tags from the configured tags list only"],
+  "category": "One category from the configured categories list only",
   "sentiment": "One of: 'Positive', 'Neutral', 'Negative'",
   "jarvisInsight": "A proactive recommendation, design question, technical standard, or business insight related to this thought. You must act as a world-class multi-disciplinary expert (e.g. software architect, venture capitalist, neuroscientist) depending on the thought topic. Address the user directly by their first name (\\"${name}\\") and never use honorifics like \\"Sir\\".",
   "actionItems": [
     {
       "title": "Short, actionable task title (e.g. 'Research competitor pricing models')",
       "description": "Detailed description of what needs to be done and why.",
-      "priority": "One of: 'high', 'medium', 'low'"
+      "priority": "One priority level from the configured priorities list only"
     }
   ]
 }
@@ -479,5 +504,44 @@ ${searchContext}`,
   } catch (err: any) {
     console.error('Error in generateChatResponse Groq call:', err.message || err);
     throw err;
+  }
+}
+
+export async function generateTaskReflection(
+  title: string,
+  description: string | null,
+  priority: string,
+  category: string,
+  userName?: string
+): Promise<string> {
+  const name = userName && userName !== 'Demo Explorer' ? userName : 'Vishnu';
+  
+  if (!ai) {
+    return `Hey ${name}, I have logged this "${priority}" priority "${category}" task. Let me know when you need help executing it.`;
+  }
+  
+  try {
+    const response = await ai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content: `You are JARVIS, an advanced and loyal AI assistant. The user just manually created a task with the following details:
+Title: ${title}
+Description: ${description || 'None provided'}
+Priority: ${priority}
+Category: ${category}
+
+Write a short, engaging, single-sentence response addressing the user directly as "${name}". 
+Acknowledge the task and provide a helpful, intelligent tip or proactive reflection.
+Do not use honorifics like "Sir" or "Madam". Keep it under 25 words.`
+        }
+      ]
+    });
+    
+    return response.choices[0]?.message?.content?.trim() || `Task logged successfully, ${name}.`;
+  } catch (err) {
+    console.error('Error generating task reflection:', err);
+    return `Hey ${name}, task has been successfully captured.`;
   }
 }
