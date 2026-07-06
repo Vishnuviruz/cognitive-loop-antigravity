@@ -239,19 +239,28 @@ export async function POST(request: Request) {
     }
 
     // 4. Save any JARVIS-extracted action items
+    const savedActionItems = [];
     if (analysis.actionItems && analysis.actionItems.length > 0) {
       for (const item of analysis.actionItems) {
+        const actionItemId = crypto.randomUUID();
         await db.insert(actionItems).values({
-          id: crypto.randomUUID(),
+          id: actionItemId,
           userId: user.id,
           thoughtId: newThoughtId,
           title: item.title,
           description: item.description || null,
           priority: item.priority || 'medium',
           status: 'pending',
+          category: analysis.category,
           dueDate: null,
           completedAt: null,
           createdAt: Date.now(),
+        });
+        savedActionItems.push({
+          id: actionItemId,
+          title: item.title,
+          priority: item.priority || 'medium',
+          status: 'pending',
         });
       }
       console.log(`Saved ${analysis.actionItems.length} action items for thought ${newThoughtId}`);
@@ -267,7 +276,7 @@ export async function POST(request: Request) {
         sentiment: analysis.sentiment,
         tags: analysis.tags,
         jarvisInsight: analysis.jarvisInsight,
-        actionItems: analysis.actionItems || [],
+        actionItems: savedActionItems,
         connections: newConnections,
         createdAt: Date.now(),
       },

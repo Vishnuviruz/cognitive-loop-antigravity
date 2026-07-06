@@ -23,6 +23,13 @@ import {
   Tag,
   Square,
   Search,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpRight,
+  Edit3,
+  BookOpen,
+  ListTodo,
+  Info
 } from 'lucide-react';
 import {
   getCustomCategories,
@@ -103,6 +110,14 @@ export default function ActionsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // AI Breakdown Detail States
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [breakdownCache, setBreakdownCache] = useState<Record<string, { summary: string; actionPlan: string[]; references: string[]; subTasks: string[] }>>({});
+  const [loadingBreakdownId, setLoadingBreakdownId] = useState<string | null>(null);
+  const [selectedSubTasks, setSelectedSubTasks] = useState<Record<string, string[]>>({});
+  const [promotedSubTasks, setPromotedSubTasks] = useState<Record<string, string[]>>({});
+  const [isPromotingSubTasks, setIsPromotingSubTasks] = useState<string | null>(null);
+
   // Load custom configurations on mount & custom updates
   const loadCustomisations = () => {
     const cats = getCustomCategories();
@@ -141,6 +156,145 @@ export default function ActionsPage() {
       console.error('Failed to fetch action items:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleExpandItem = async (item: ActionItem) => {
+    if (expandedItemId === item.id) {
+      setExpandedItemId(null);
+      return;
+    }
+
+    setExpandedItemId(item.id);
+
+    // Fetch breakdown if not already in cache
+    if (!breakdownCache[item.id]) {
+      setLoadingBreakdownId(item.id);
+      try {
+        const res = await fetch('/api/action-items/breakdown', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: item.title,
+            description: item.description,
+            category: item.category,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setBreakdownCache((prev) => ({
+            ...prev,
+            [item.id]: data,
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to load task breakdown:', err);
+      } finally {
+        setLoadingBreakdownId(null);
+      }
+    }
+  };
+
+  const handleToggleSubTaskCheck = (taskId: string, subtask: string) => {
+    setSelectedSubTasks((prev) => {
+      const currentSelected = prev[taskId] || [];
+      const isSelected = currentSelected.includes(subtask);
+      const nextSelected = isSelected
+        ? currentSelected.filter((s) => s !== subtask)
+        : [...currentSelected, subtask];
+      return {
+        ...prev,
+        [taskId]: nextSelected,
+      };
+    });
+  };
+
+  const handlePromoteSubTasks = async (item: ActionItem) => {
+    const selected = selectedSubTasks[item.id] || [];
+    if (selected.length === 0) return;
+
+    setIsPromotingSubTasks(item.id);
+    try {
+      const createdTasks: ActionItem[] = [];
+      for (const title of selected) {
+        const res = await fetch('/api/action-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thoughtId: item.thoughtId || null,
+            title,
+            description: `Auto-promoted from sub-task of parent task: "${item.title}".`,
+            priority: 'medium',
+            category: item.category || 'Work',
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          createdTasks.push(data.actionItem);
+        }
+      }
+
+      // Prepend the new tasks to the items list
+      setItems((prev) => [...createdTasks, ...prev]);
+
+      // Remove promoted sub-tasks from the cached sub-tasks list for this item
+      const currentCache = breakdownCache[item.id];
+      if (currentCache) {
+        const remainingSubTasks = currentCache.subTasks.filter((s) => !selected.includes(s));
+        
+        // Track overall excluded sub-tasks to fetch alternative ones
+        const alreadyPromoted = promotedSubTasks[item.id] || [];
+        const nextPromoted = [...alreadyPromoted, ...selected];
+        setPromotedSubTasks((prev) => ({
+          ...prev,
+          [item.id]: nextPromoted,
+        }));
+        
+        // Fetch fresh alternative sub-tasks to fill back up to 3!
+        const res = await fetch('/api/action-items/breakdown', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            excludeSubTasks: nextPromoted,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // Update the cache with fresh sub-tasks
+          setBreakdownCache((prev) => ({
+            ...prev,
+            [item.id]: {
+              ...currentCache,
+              subTasks: data.subTasks || [],
+            },
+          }));
+        } else {
+          // If fallback, just store the remaining ones
+          setBreakdownCache((prev) => ({
+            ...prev,
+            [item.id]: {
+              ...currentCache,
+              subTasks: remainingSubTasks,
+            },
+          }));
+        }
+      }
+
+      // Clear selection for this task
+      setSelectedSubTasks((prev) => ({
+        ...prev,
+        [item.id]: [],
+      }));
+    } catch (err) {
+      console.error('Failed to promote sub-tasks:', err);
+    } finally {
+      setIsPromotingSubTasks(null);
     }
   };
 
@@ -740,11 +894,15 @@ export default function ActionsPage() {
             const isOverdue = item.dueDate && item.dueDate < Date.now() && item.status !== 'completed' && item.status !== 'dismissed';
             const daysLeft = item.dueDate ? getDaysUntilDue(item.dueDate) : null;
             const isSelected = selectedIds.has(item.id);
+            const taskSelectedSubs = selectedSubTasks[item.id] || [];
 
             return (
               <div
                 key={item.id}
-                className={`glass-panel rounded-xl border p-4 transition-all group ${
+                onClick={() => toggleExpandItem(item)}
+                className={`glass-panel rounded-xl border p-4 transition-all group cursor-pointer ${
+                  expandedItemId === item.id ? 'z-30 relative' : 'z-10 relative'
+                } ${
                   item.status === 'completed'
                     ? 'border-emerald-500/10 bg-emerald-950/5'
                     : item.status === 'dismissed'
@@ -757,7 +915,10 @@ export default function ActionsPage() {
                 <div className="flex items-start gap-4">
                   {/* Bulk Select Checkbox */}
                   <button
-                    onClick={() => handleToggleSelect(item.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleSelect(item.id);
+                    }}
                     className="mt-1 cursor-pointer shrink-0 text-zinc-600 hover:text-indigo-400 transition-colors"
                   >
                     {isSelected ? (
@@ -766,8 +927,6 @@ export default function ActionsPage() {
                       <Square className="w-4 h-4 text-zinc-700" />
                     )}
                   </button>
-
-
 
                   {/* Content */}
                   <div className="flex-1 min-w-0 space-y-2 select-text">
@@ -786,7 +945,10 @@ export default function ActionsPage() {
                         
                         {/* Edit Button */}
                         <button
-                          onClick={() => handleStartEdit(item)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEdit(item);
+                          }}
                           className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 text-zinc-650 hover:text-indigo-400 hover:bg-zinc-900/60 rounded transition-all cursor-pointer"
                           title="Edit manual task"
                         >
@@ -797,11 +959,30 @@ export default function ActionsPage() {
 
                         {/* Delete Button */}
                         <button
-                          onClick={() => handleDeleteClick(item.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(item.id);
+                          }}
                           className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 text-zinc-650 hover:text-rose-455 hover:bg-zinc-900/60 rounded transition-all cursor-pointer"
                           title="Delete task"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Dropdown Chevron Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpandItem(item);
+                          }}
+                          className="p-1 text-zinc-500 hover:text-indigo-400 hover:bg-zinc-900/60 rounded transition-all cursor-pointer"
+                          title="View AI Breakdown"
+                        >
+                          {expandedItemId === item.id ? (
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -818,11 +999,11 @@ export default function ActionsPage() {
                         <span>{item.category || 'Work'}</span>
                       </span>
 
-                      {/* Source Thought */}
-                      {item.thoughtSummary && (
-                        <span className="inline-flex items-center gap-1 text-zinc-500 max-w-[240px] truncate">
+                      {/* Source Thought / AI Summary */}
+                      {(breakdownCache[item.id]?.summary || item.thoughtSummary) && (
+                        <span className="inline-flex items-center gap-1.5 text-zinc-500 flex-wrap">
                           <Sparkles className="w-3 h-3 text-indigo-400 shrink-0" />
-                          <span className="truncate">{item.thoughtSummary}</span>
+                          <span>{breakdownCache[item.id]?.summary || item.thoughtSummary}</span>
                         </span>
                       )}
 
@@ -851,6 +1032,113 @@ export default function ActionsPage() {
                         </span>
                       )}
                     </div>
+
+                    {/* Expandable AI Breakdown Drawer */}
+                    {expandedItemId === item.id && (
+                      <div className="mt-4 pt-4 border-t border-zinc-900/80 space-y-4 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+                        {loadingBreakdownId === item.id ? (
+                          <div className="flex flex-col items-center justify-center py-6 space-y-2">
+                            <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
+                            <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest animate-pulse">Consulting JARVIS Core...</span>
+                          </div>
+                        ) : breakdownCache[item.id] ? (
+                          <div className="space-y-4 cursor-default">
+                            {/* Two-Column Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Action plans */}
+                              <div className="bg-zinc-950/40 p-3 rounded-lg border border-zinc-900 space-y-2">
+                                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                                  <BookOpen className="w-3.5 h-3.5" /> Potential Action Plan
+                                </span>
+                                <ul className="space-y-1.5 list-none">
+                                  {breakdownCache[item.id].actionPlan.map((plan, idx) => (
+                                    <li key={idx} className="text-zinc-300 text-xs flex items-start gap-1.5 leading-relaxed">
+                                      <span className="text-indigo-400 shrink-0 font-bold font-mono">{idx + 1}.</span>
+                                      <span>{plan}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              {/* Web references */}
+                              <div className="bg-zinc-950/40 p-3 rounded-lg border border-zinc-900 space-y-2">
+                                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                                  <ArrowUpRight className="w-3.5 h-3.5" /> Helpful Web References
+                                </span>
+                                <div className="space-y-1.5">
+                                  {breakdownCache[item.id].references.map((ref, idx) => (
+                                    <div key={idx} className="flex items-start gap-1.5 text-zinc-300 text-xs leading-relaxed">
+                                      <span className="text-zinc-600 shrink-0">•</span>
+                                      <span className="underline decoration-indigo-500/40 hover:text-indigo-300 transition-colors cursor-pointer select-all">{ref}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Recommended Sub Tasks Checklists */}
+                            <div className="bg-zinc-950/40 p-3 rounded-lg border border-zinc-900 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                                  <ListTodo className="w-3.5 h-3.5" /> Recommended Sub-tasks
+                                </span>
+                                {taskSelectedSubs.length > 0 && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handlePromoteSubTasks(item);
+                                    }}
+                                    disabled={isPromotingSubTasks === item.id}
+                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                  >
+                                    {isPromotingSubTasks === item.id ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Plus className="w-3 h-3" />
+                                    )}
+                                    Add Selected ({taskSelectedSubs.length})
+                                  </button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {breakdownCache[item.id].subTasks.map((sub, idx) => {
+                                  const isSubChecked = taskSelectedSubs.includes(sub);
+                                  return (
+                                    <div
+                                      key={idx}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleSubTaskCheck(item.id, sub);
+                                      }}
+                                      title={sub}
+                                      className={`flex items-center gap-2 p-2 bg-zinc-900/20 border rounded-md relative group/subtask transition-all hover:bg-zinc-805/45 cursor-pointer ${
+                                        isSubChecked ? 'border-indigo-500/40 bg-indigo-500/5' : 'border-zinc-900/60'
+                                      }`}
+                                    >
+                                      <div className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center transition-all ${
+                                        isSubChecked ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-zinc-800'
+                                      }`}>
+                                        {isSubChecked && <svg className="w-2.5 h-2.5 fill-none stroke-current" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>}
+                                      </div>
+                                      <span className={`text-[11px] truncate font-medium transition-all ${
+                                        isSubChecked ? 'text-zinc-200' : 'text-zinc-405'
+                                      }`}>{sub}</span>
+
+                                      {/* Custom Floating CSS Tooltip (Floating Upwards) */}
+                                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/subtask:block bg-zinc-950 text-zinc-100 text-[10px] p-2.5 rounded-lg border border-zinc-800 shadow-2xl max-w-[220px] z-[9999] pointer-events-none break-words leading-relaxed text-center font-normal">
+                                        {sub}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-zinc-550 text-xs italic py-2">Failed to calculate task breakdown. Please try again.</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
