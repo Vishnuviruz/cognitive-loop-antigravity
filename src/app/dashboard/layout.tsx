@@ -24,8 +24,8 @@ export default async function DashboardLayout({
           - Mobile: a sticky top bar + overlay drawer (stacks above content) */}
       <Sidebar user={user} />
 
-      {/* Content area: on desktop offset by sidebar width, on mobile full-width */}
-      <div className="lg:pl-64 min-h-screen flex flex-col w-full overflow-x-hidden">
+      {/* Content area: on desktop offset by sidebar width, on mobile full-width with top padding for fixed header */}
+      <div className="lg:pl-64 min-h-screen flex flex-col w-full overflow-x-hidden pt-[76px] lg:pt-0">
         <main className="flex-1 p-4 md:p-6 lg:p-12 w-full min-w-0 overflow-x-hidden">
           {children}
         </main>

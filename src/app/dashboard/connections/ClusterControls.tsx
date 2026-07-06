@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Combine } from 'lucide-react';
 
 interface ClusterControlsProps {
   totalItems: number;
@@ -42,24 +43,18 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
   };
 
   return (
-    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+    <div className="flex flex-wrap md:flex-nowrap items-center gap-2.5 w-full md:w-auto justify-start md:justify-end">
       {/* Cluster Toggle Button */}
       <button
         onClick={toggleCluster}
-        className={`h-[34px] px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+        className={`h-[34px] px-3.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 ${
           isClustered 
-            ? 'bg-indigo-650 text-white border-indigo-600 shadow-md shadow-indigo-600/10'
-            : 'bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:bg-zinc-800/40 hover:text-zinc-200'
+            ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-500/20'
+            : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800/50 hover:text-zinc-200'
         }`}
       >
-        <span>{isClustered ? 'Show Raw' : 'Cluster'}</span>
-        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded font-mono ${
-          isClustered 
-            ? 'bg-emerald-500/25 text-emerald-350 border border-emerald-500/20'
-            : 'bg-zinc-800 text-zinc-550 border border-zinc-700'
-        }`}>
-          {isClustered ? 'ON' : 'OFF'}
-        </span>
+        <Combine className="w-3.5 h-3.5" />
+        <span>{isClustered ? 'Clusters On' : 'Cluster'}</span>
       </button>
 
       {/* Pagination Controls */}
@@ -88,10 +83,10 @@ export const ClusterControls: React.FC<ClusterControlsProps> = ({
         <button
           type="button"
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="h-[34px] bg-zinc-900/60 border border-zinc-800/80 text-zinc-300 text-xs rounded-xl px-3 pr-7 focus:outline-none transition-all cursor-pointer flex items-center justify-between min-w-[90px]"
+          className="h-[34px] bg-zinc-900/60 border border-zinc-800/80 text-zinc-300 text-xs rounded-xl px-3 pr-7 focus:outline-none transition-all cursor-pointer flex items-center justify-between min-w-[110px] whitespace-nowrap"
         >
-          <span>{pageSize} per page</span>
-          <svg className="h-3 w-3 fill-none stroke-current text-zinc-400 ml-1" viewBox="0 0 24 24">
+          <span className="whitespace-nowrap">{pageSize} per page</span>
+          <svg className="h-3 w-3 fill-none stroke-current text-zinc-400 ml-1 shrink-0" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>

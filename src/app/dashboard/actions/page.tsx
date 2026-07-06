@@ -22,7 +22,15 @@ import {
   AlertCircle,
   Tag,
   Square,
+  Search,
 } from 'lucide-react';
+import {
+  getCustomCategories,
+  getCustomPriorities,
+  getCustomStatuses,
+  PriorityOption,
+  StatusOption
+} from '@/lib/customSettings';
 
 interface ActionItem {
   id: string;
@@ -41,10 +49,33 @@ interface ActionItem {
 export default function ActionsPage() {
   const [items, setItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Custom Settings Lists
+  const [categories, setCategories] = useState<string[]>([]);
+  const [priorities, setPriorities] = useState<PriorityOption[]>([]);
+  const [statuses, setStatuses] = useState<StatusOption[]>([]);
+
+  // Filtering States
   const [filterStatus, setFilterStatus] = useState<string>('active');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Dropdown States for filter rows
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
+  const [priorityFilterOpen, setPriorityFilterOpen] = useState(false);
+  const [categoryFilterOpen, setCategoryFilterOpen] = useState(false);
+
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  const [createPriorityOpen, setCreatePriorityOpen] = useState(false);
+  const [editCategoryOpen, setEditCategoryOpen] = useState(false);
+  const [editPriorityOpen, setEditPriorityOpen] = useState(false);
+  const [editStatusOpen, setEditStatusOpen] = useState(false);
+
   // Selection/Bulk Actions
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
@@ -72,8 +103,31 @@ export default function ActionsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // Load custom configurations on mount & custom updates
+  const loadCustomisations = () => {
+    const cats = getCustomCategories();
+    setCategories(cats);
+    setPriorities(getCustomPriorities());
+    setStatuses(getCustomStatuses());
+    
+    // Set dynamic default category if 'Work' isn't in categories
+    if (cats.length > 0 && !cats.includes('Work')) {
+      setCreateCategory(cats[0]);
+      setEditCategory(cats[0]);
+    }
+  };
+
   useEffect(() => {
     fetchItems();
+    loadCustomisations();
+
+    const handleUpdate = () => {
+      loadCustomisations();
+    };
+    window.addEventListener('customSettingsUpdated', handleUpdate);
+    return () => {
+      window.removeEventListener('customSettingsUpdated', handleUpdate);
+    };
   }, []);
 
   const fetchItems = async () => {
@@ -316,8 +370,22 @@ export default function ActionsPage() {
     if (filterStatus === 'dismissed' && item.status !== 'dismissed') return false;
     if (filterPriority !== 'all' && item.priority !== filterPriority) return false;
     if (filterCategory !== 'all' && (item.category || 'Work') !== filterCategory) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const titleMatch = item.title.toLowerCase().includes(q);
+      const descMatch = (item.description || '').toLowerCase().includes(q);
+      const catMatch = (item.category || 'Work').toLowerCase().includes(q);
+      if (!titleMatch && !descMatch && !catMatch) return false;
+    }
     return true;
   });
+
+  const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
+  const paginatedItems = filteredItems.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   // Stats
   const totalActive = items.filter((i) => i.status === 'pending' || i.status === 'in_progress').length;
@@ -397,12 +465,6 @@ export default function ActionsPage() {
             JARVIS-extracted tasks from your thoughts. Every idea becomes an actionable step.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition-all cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" /> Add Task
-        </button>
       </div>
 
       {/* Stats Grid */}
@@ -428,80 +490,168 @@ export default function ActionsPage() {
         ))}
       </div>
 
-      {/* Filter and controls header bar */}
-      <div className="bg-zinc-950/20 border border-zinc-900 rounded-2xl p-4 flex flex-col gap-4">
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center w-full">
-            {/* Status Filter */}
-            <div className="space-y-1.5 w-full sm:w-auto">
-              <div className="flex items-center gap-1.5 text-zinc-505 text-xs px-1">
-                <Filter className="w-3.5 h-3.5" />
-                <span className="font-semibold uppercase tracking-wider text-[9px] text-zinc-500">Status</span>
-              </div>
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
-                {['active', 'completed', 'dismissed', 'all'].map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setFilterStatus(status)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
-                      filterStatus === status
-                        ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300'
-                        : 'bg-zinc-900/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* Controls Row */}
+      <div className="w-full bg-zinc-950/20 border border-zinc-900 rounded-2xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Search box */}
+          <div className="relative w-full sm:w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full h-[36px] pl-9 pr-4 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition-all"
+            />
+          </div>
 
-            {/* Priority Filter */}
-            <div className="space-y-1.5 w-full sm:w-auto">
-              <div className="flex items-center gap-1.5 text-zinc-505 text-xs px-1">
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span className="font-semibold uppercase tracking-wider text-[9px] text-zinc-500">Priority</span>
-              </div>
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
-                {['all', 'high', 'medium', 'low'].map((priority) => (
-                  <button
-                    key={priority}
-                    onClick={() => setFilterPriority(priority)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
-                      filterPriority === priority
-                        ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300'
-                        : 'bg-zinc-900/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
-                    }`}
-                  >
-                    {priority}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Status Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setStatusFilterOpen(!statusFilterOpen);
+                setPriorityFilterOpen(false);
+                setCategoryFilterOpen(false);
+              }}
+              className="h-[36px] px-3.5 bg-zinc-905 border border-zinc-800 text-zinc-300 text-xs rounded-xl hover:text-white transition-all cursor-pointer flex items-center gap-1.5 min-w-[110px] justify-between capitalize"
+            >
+              <span className="flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-zinc-500" />
+                <span>{filterStatus}</span>
+              </span>
+              <svg className="h-3 w-3 fill-none stroke-current text-zinc-400" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
 
-            {/* Category Filter */}
-            <div className="space-y-1.5 w-full sm:w-auto">
-              <div className="flex items-center gap-1.5 text-zinc-505 text-xs px-1">
-                <Tag className="w-3.5 h-3.5" />
-                <span className="font-semibold uppercase tracking-wider text-[9px] text-zinc-500">Category</span>
-              </div>
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
-                {['all', 'Work', 'Personal', 'Fitness', 'Finance', 'Ideas', 'Others'].map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setFilterCategory(cat)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize whitespace-nowrap ${
-                      filterCategory === cat
-                        ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300'
-                        : 'bg-zinc-900/40 border-zinc-900 text-zinc-500 hover:text-zinc-350'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {statusFilterOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setStatusFilterOpen(false)} />
+                <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[140px] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl py-1 backdrop-blur-md">
+                  {['active', 'completed', 'dismissed', 'all'].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => {
+                        setFilterStatus(st);
+                        setStatusFilterOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block capitalize ${
+                        st === filterStatus 
+                          ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                          : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Priority Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setPriorityFilterOpen(!priorityFilterOpen);
+                setStatusFilterOpen(false);
+                setCategoryFilterOpen(false);
+              }}
+              className="h-[36px] px-3.5 bg-zinc-905 border border-zinc-800 text-zinc-300 text-xs rounded-xl hover:text-white transition-all cursor-pointer flex items-center gap-1.5 min-w-[110px] justify-between capitalize"
+            >
+              <span className="flex items-center gap-1.5">
+                <BarChart3 className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Priority: {filterPriority}</span>
+              </span>
+              <svg className="h-3 w-3 fill-none stroke-current text-zinc-400" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {priorityFilterOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setPriorityFilterOpen(false)} />
+                <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[140px] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl py-1 backdrop-blur-md">
+                  {['all', 'high', 'medium', 'low'].map((pri) => (
+                    <button
+                      key={pri}
+                      onClick={() => {
+                        setFilterPriority(pri);
+                        setPriorityFilterOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block capitalize ${
+                        pri === filterPriority 
+                          ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                          : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                      }`}
+                    >
+                      {pri}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Category Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setCategoryFilterOpen(!categoryFilterOpen);
+                setStatusFilterOpen(false);
+                setPriorityFilterOpen(false);
+              }}
+              className="h-[36px] px-3.5 bg-zinc-905 border border-zinc-800 text-zinc-300 text-xs rounded-xl hover:text-white transition-all cursor-pointer flex items-center gap-1.5 min-w-[110px] justify-between capitalize"
+            >
+              <span className="flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-zinc-550" />
+                <span>Category: {filterCategory}</span>
+              </span>
+              <svg className="h-3 w-3 fill-none stroke-current text-zinc-400" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {categoryFilterOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setCategoryFilterOpen(false)} />
+                <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[150px] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl py-1 backdrop-blur-md max-h-48 overflow-y-auto">
+                  {['all', ...categories].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        setFilterCategory(cat);
+                        setCategoryFilterOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block capitalize ${
+                        cat === filterCategory 
+                          ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                          : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Add Task Button */}
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 h-[36px] bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-extrabold rounded-xl border border-indigo-500/30 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all cursor-pointer shrink-0 w-full md:w-auto justify-center"
+        >
+          <Plus className="w-4 h-4" /> Add Task
+        </button>
+      </div>
 
         {/* Bulk Action Toolbar */}
         {selectedIds.size > 0 && (
@@ -556,7 +706,7 @@ export default function ActionsPage() {
             </div>
           </div>
         )}
-      </div>
+
 
       {/* Action Items List */}
       {filteredItems.length === 0 ? (
@@ -580,12 +730,12 @@ export default function ActionsPage() {
               onClick={handleToggleSelectAll}
               className="hover:text-zinc-350 cursor-pointer font-bold"
             >
-              {selectedIds.size === filteredItems.length ? 'Deselect All' : 'Select All on Page'}
+              {selectedIds.size === paginatedItems.length ? 'Deselect All' : 'Select All on Page'}
             </button>
-            <span>Showing {filteredItems.length} entries</span>
+            <span>Showing {paginatedItems.length} of {filteredItems.length} entries</span>
           </div>
 
-          {filteredItems.map((item) => {
+          {paginatedItems.map((item) => {
             const isUpdating = updatingIds.has(item.id);
             const isOverdue = item.dueDate && item.dueDate < Date.now() && item.status !== 'completed' && item.status !== 'dismissed';
             const daysLeft = item.dueDate ? getDaysUntilDue(item.dueDate) : null;
@@ -617,19 +767,7 @@ export default function ActionsPage() {
                     )}
                   </button>
 
-                  {/* Status Toggle */}
-                  <button
-                    onClick={() => updateItem(item.id, { status: cycleStatus(item.status) })}
-                    disabled={isUpdating}
-                    className="mt-1 cursor-pointer hover:scale-110 transition-transform disabled:opacity-50 shrink-0"
-                    title={`Status: ${item.status}. Click to cycle.`}
-                  >
-                    {isUpdating ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-                    ) : (
-                      getStatusIcon(item.status)
-                    )}
-                  </button>
+
 
                   {/* Content */}
                   <div className="flex-1 min-w-0 space-y-2 select-text">
@@ -718,6 +856,53 @@ export default function ActionsPage() {
               </div>
             );
           })}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-zinc-950/20 border border-zinc-900 rounded-2xl p-4 mt-6">
+              <span className="text-xs text-zinc-500 font-medium">
+                Showing {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, filteredItems.length)} of {filteredItems.length} tasks
+              </span>
+              
+              <div className="flex items-center gap-4">
+                {/* Custom Page Size Selector (Dropdown style) */}
+                <div className="relative">
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="h-[34px] bg-zinc-900 border border-zinc-805 text-zinc-350 text-xs rounded-xl px-3 pr-8 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2500%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%2523a1a1aa%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[position:right_10px_center] bg-no-repeat bg-[size:18px] min-w-[110px]"
+                  >
+                    {[5, 10, 25, 50].map((size) => (
+                      <option key={size} value={size}>{size} per page</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-1 bg-zinc-900/30 border border-zinc-800/80 rounded-xl p-1 h-[34px]">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage <= 1}
+                    className="h-7 w-7 flex items-center justify-center rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:bg-zinc-800/60 text-zinc-400 disabled:opacity-20 disabled:hover:bg-zinc-900/60 transition-all cursor-pointer font-bold text-xs"
+                  >
+                    ‹
+                  </button>
+                  <span className="text-xs text-zinc-400 px-2 min-w-[40px] text-center select-none font-medium">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="h-7 w-7 flex items-center justify-center rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:bg-zinc-800/60 text-zinc-400 disabled:opacity-20 disabled:hover:bg-zinc-900/60 transition-all cursor-pointer font-bold text-xs"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -741,19 +926,45 @@ export default function ActionsPage() {
 
             <div className="space-y-4 text-xs">
               {/* Category selector */}
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+              <div className="relative">
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5 px-0.5">
                   Category
                 </label>
-                <select
-                  value={createCategory}
-                  onChange={(e) => setCreateCategory(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                <button
+                  type="button"
+                  onClick={() => setCreateCategoryOpen(!createCategoryOpen)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500 text-left flex items-center justify-between cursor-pointer"
                 >
-                  {['Work', 'Personal', 'Fitness', 'Finance', 'Ideas', 'Others'].map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                  <span className="font-medium text-xs">{createCategory || 'Select category'}</span>
+                  <svg className="h-4 w-4 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {createCategoryOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setCreateCategoryOpen(false)} />
+                    <div className="absolute left-0 top-full mt-1.5 w-full bg-zinc-950 border border-zinc-805 rounded-xl shadow-2xl py-1 z-50 backdrop-blur-md max-h-48 overflow-y-auto">
+                      {['Work', 'Personal', 'Fitness', 'Finance', 'Ideas', 'Others'].map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setCreateCategory(cat);
+                            setCreateCategoryOpen(false);
+                          }}
+                          className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
+                            cat === createCategory 
+                              ? 'bg-indigo-600/20 text-indigo-300 font-bold' 
+                              : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Title input */}
@@ -789,19 +1000,45 @@ export default function ActionsPage() {
 
               {/* Priority & Due Date side-by-side */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                <div className="relative">
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5 px-0.5">
                     Priority
                   </label>
-                  <select
-                    value={createPriority}
-                    onChange={(e) => setCreatePriority(e.target.value as any)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  <button
+                    type="button"
+                    onClick={() => setCreatePriorityOpen(!createPriorityOpen)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500 text-left flex items-center justify-between cursor-pointer capitalize"
                   >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
+                    <span className="font-medium text-xs">{createPriority}</span>
+                    <svg className="h-4 w-4 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {createPriorityOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setCreatePriorityOpen(false)} />
+                      <div className="absolute left-0 top-full mt-1.5 w-full bg-zinc-950 border border-zinc-805 rounded-xl shadow-2xl py-1 z-50 backdrop-blur-md">
+                        {['low', 'medium', 'high'].map((pri) => (
+                          <button
+                            key={pri}
+                            type="button"
+                            onClick={() => {
+                              setCreatePriority(pri as any);
+                              setCreatePriorityOpen(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block capitalize ${
+                              pri === createPriority 
+                                ? 'bg-indigo-600/20 text-indigo-300 font-bold' 
+                                : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                            }`}
+                          >
+                            {pri}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div>
                   <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
@@ -827,10 +1064,10 @@ export default function ActionsPage() {
               <button
                 onClick={handleCreateTask}
                 disabled={isCreatingTask}
-                className="px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-lg shadow-indigo-500/10 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-extrabold transition-all flex items-center gap-1 shadow-lg shadow-indigo-500/10 cursor-pointer"
               >
                 {isCreatingTask && <Loader2 className="w-3 h-3 animate-spin" />}
-                Generate Task
+                Create Task
               </button>
             </div>
           </div>
@@ -857,19 +1094,45 @@ export default function ActionsPage() {
 
             <div className="space-y-4 text-xs">
               {/* Category */}
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+              <div className="relative">
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5 px-0.5">
                   Category
                 </label>
-                <select
-                  value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                <button
+                  type="button"
+                  onClick={() => setEditCategoryOpen(!editCategoryOpen)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500 text-left flex items-center justify-between cursor-pointer"
                 >
-                  {['Work', 'Personal', 'Fitness', 'Finance', 'Ideas', 'Others'].map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                  <span className="font-medium text-xs">{editCategory || 'Select category'}</span>
+                  <svg className="h-4 w-4 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {editCategoryOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setEditCategoryOpen(false)} />
+                    <div className="absolute left-0 top-full mt-1.5 w-full bg-zinc-950 border border-zinc-805 rounded-xl shadow-2xl py-1 z-50 backdrop-blur-md max-h-48 overflow-y-auto">
+                      {['Work', 'Personal', 'Fitness', 'Finance', 'Ideas', 'Others'].map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setEditCategory(cat);
+                            setEditCategoryOpen(false);
+                          }}
+                          className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
+                            cat === editCategory 
+                              ? 'bg-indigo-600/20 text-indigo-300 font-bold' 
+                              : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Title */}
@@ -900,19 +1163,45 @@ export default function ActionsPage() {
 
               {/* Priority & Due Date side-by-side */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                <div className="relative">
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5 px-0.5">
                     Priority
                   </label>
-                  <select
-                    value={editPriority}
-                    onChange={(e) => setEditPriority(e.target.value as any)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  <button
+                    type="button"
+                    onClick={() => setEditPriorityOpen(!editPriorityOpen)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500 text-left flex items-center justify-between cursor-pointer capitalize"
                   >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
+                    <span className="font-medium text-xs">{editPriority}</span>
+                    <svg className="h-4 w-4 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {editPriorityOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setEditPriorityOpen(false)} />
+                      <div className="absolute left-0 top-full mt-1.5 w-full bg-zinc-950 border border-zinc-805 rounded-xl shadow-2xl py-1 z-50 backdrop-blur-md">
+                        {['low', 'medium', 'high'].map((pri) => (
+                          <button
+                            key={pri}
+                            type="button"
+                            onClick={() => {
+                              setEditPriority(pri as any);
+                              setEditPriorityOpen(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block capitalize ${
+                              pri === editPriority 
+                                ? 'bg-indigo-600/20 text-indigo-300 font-bold' 
+                                : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                            }`}
+                          >
+                            {pri}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div>
                   <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
@@ -928,20 +1217,45 @@ export default function ActionsPage() {
               </div>
 
               {/* Status */}
-              <div>
-                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+              <div className="relative">
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5 px-0.5">
                   Status
                 </label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value as any)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                <button
+                  type="button"
+                  onClick={() => setEditStatusOpen(!editStatusOpen)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500 text-left flex items-center justify-between cursor-pointer capitalize"
                 >
-                  <option value="pending">Pending</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                  <option value="dismissed">Dismissed</option>
-                </select>
+                  <span className="font-medium text-xs">{editStatus.replace('_', ' ')}</span>
+                  <svg className="h-4 w-4 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {editStatusOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setEditStatusOpen(false)} />
+                    <div className="absolute left-0 top-full mt-1.5 w-full bg-zinc-950 border border-zinc-805 rounded-xl shadow-2xl py-1 z-50 backdrop-blur-md">
+                      {['pending', 'in_progress', 'completed', 'dismissed'].map((stat) => (
+                        <button
+                          key={stat}
+                          type="button"
+                          onClick={() => {
+                            setEditStatus(stat as any);
+                            setEditStatusOpen(false);
+                          }}
+                          className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block capitalize ${
+                            stat === editStatus 
+                              ? 'bg-indigo-600/20 text-indigo-300 font-bold' 
+                              : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                          }`}
+                        >
+                          {stat.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

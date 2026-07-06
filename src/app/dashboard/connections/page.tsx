@@ -458,13 +458,13 @@ export default function ConnectionsPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full md:w-auto">
           <button
             onClick={() => {
               setSelectedSourceId(activeThoughtId || '');
               setShowCreateLinkModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-550/20 hover:shadow-indigo-500/30 cursor-pointer border border-indigo-400/20"
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-550/20 hover:shadow-indigo-500/30 cursor-pointer border border-indigo-400/20 w-full md:w-auto justify-center"
           >
             <Plus className="w-4 h-4" /> Add Connection
             <span className="ml-1.5 text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded font-mono font-bold">
@@ -552,7 +552,7 @@ export default function ConnectionsPage() {
                 <span className="truncate pr-2 font-semibold flex items-center gap-2">
                   {activeThought ? (
                     <>
-                      <span className="flex items-center gap-1.5 bg-zinc-950 px-2 py-0.5 rounded-lg border border-zinc-850 shrink-0">
+                      <span className="flex items-center gap-1.5 bg-zinc-950/60 px-2 py-0.5 rounded-lg border border-zinc-800/60 shrink-0">
                         {getCategoryIcon(activeThought.category)}
                         <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wide hidden sm:inline">{activeThought.category}</span>
                       </span>
@@ -644,8 +644,8 @@ export default function ConnectionsPage() {
             </div>
 
             {/* Filter and Control bar */}
-            <div className="w-full bg-zinc-950/40 border border-zinc-900 rounded-2xl p-3.5 mb-6 flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative w-full sm:w-[220px]">
+            <div className="w-full bg-zinc-950/40 border border-zinc-900 rounded-2xl p-3.5 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3.5">
+              <div className="relative w-full md:w-[260px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="text"
@@ -659,7 +659,7 @@ export default function ConnectionsPage() {
                 />
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex w-full md:w-auto justify-start md:justify-end">
                 <ClusterControls
                   totalItems={totalItems}
                   currentPage={currentPage}
@@ -1263,7 +1263,7 @@ export default function ConnectionsPage() {
                            {activeThought.summary}
                          </h4>
                          {parentExpanded && (
-                           <p className="text-zinc-400 text-[11px] leading-relaxed max-h-[120px] overflow-y-auto pr-1 bg-black/30 p-2.5 rounded-lg border border-zinc-850 select-text animate-fadeIn mt-2">
+                           <p className="text-zinc-400 text-[11px] leading-relaxed max-h-[120px] overflow-y-auto pr-1 bg-black/30 p-2.5 rounded-lg border border-zinc-800/80 select-text animate-fadeIn mt-2">
                              {activeThought.content}
                            </p>
                          )}
@@ -1385,7 +1385,7 @@ export default function ConnectionsPage() {
                            
                            <p className="text-zinc-200 font-semibold select-text">{selectedNodeThought.summary}</p>
                            {childExpanded && (
-                             <p className="text-zinc-400 text-[11px] leading-relaxed select-text max-h-[120px] overflow-y-auto pr-1 bg-black/30 p-2.5 rounded-lg border border-zinc-850 mt-1 animate-fadeIn">
+                             <p className="text-zinc-400 text-[11px] leading-relaxed select-text max-h-[120px] overflow-y-auto pr-1 bg-black/30 p-2.5 rounded-lg border border-zinc-800/80 mt-1 animate-fadeIn">
                                {selectedNodeThought.content}
                              </p>
                            )}
@@ -1393,7 +1393,7 @@ export default function ConnectionsPage() {
                        </div>
 
                        {/* Detailed Connection Summary Breakdown (Label outside scroll box to prevent overlap) */}
-                       <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850 flex flex-col justify-start relative">
+                       <div className="space-y-2 bg-zinc-900/40 p-4 rounded-xl border border-zinc-800/85 flex flex-col justify-start relative">
                          <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-zinc-800 pb-2 mb-1">
                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Detailed Connection Analysis
                          </label>
@@ -1450,7 +1450,7 @@ export default function ConnectionsPage() {
                          <select
                            value={taskPriority}
                            onChange={(e) => setTaskPriority(e.target.value as any)}
-                           className="flex-1 bg-zinc-900 border border-zinc-850 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500"
+                           className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500"
                          >
                            <option value="high">🔥 High Priority</option>
                            <option value="medium">⚡ Medium Priority</option>

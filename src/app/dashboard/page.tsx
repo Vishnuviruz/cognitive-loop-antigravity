@@ -20,9 +20,14 @@ import {
   GitMerge,
   Edit3,
   Trash2,
-  X
+  X,
+  ArrowUpRight,
+  CheckSquare,
+  CheckCircle2
 } from 'lucide-react';
 import VoiceRecorder from '@/components/VoiceRecorder';
+import Link from 'next/link';
+import { getCustomCategories, getCustomTags, getCustomPriorities, getCustomStatuses } from '@/lib/customSettings';
 
 interface Connection {
   relationshipId: string;
@@ -43,6 +48,13 @@ interface Decision {
   createdAt: number;
 }
 
+interface TimelineActionItem {
+  id: string;
+  title: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'pending' | 'in_progress' | 'completed' | 'dismissed';
+}
+
 interface Thought {
   id: string;
   content: string;
@@ -53,6 +65,7 @@ interface Thought {
   connections: Connection[];
   jarvisInsight?: string | null;
   decision?: Decision | null;
+  actionItems?: TimelineActionItem[];
   createdAt: number;
 }
 
@@ -103,8 +116,16 @@ export default function DashboardPage() {
   const [editSummary, setEditSummary] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [newCustomTag, setNewCustomTag] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+
+  // Thought-to-Action Creation States
+  const [thoughtTaskTitle, setThoughtTaskTitle] = useState('');
+  const [thoughtTaskPriority, setThoughtTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [isCreatingThoughtTask, setIsCreatingThoughtTask] = useState<string | null>(null);
+  const [createTaskPriorityOpen, setCreateTaskPriorityOpen] = useState(false);
 
   // Thought Deletion
   const [deleteThoughtId, setDeleteThoughtId] = useState<string | null>(null);
@@ -112,13 +133,7 @@ export default function DashboardPage() {
 
   const categories = [
     { value: 'all', label: 'All Entries' },
-    { value: 'Idea', label: 'Ideas' },
-    { value: 'Goal', label: 'Goals' },
-    { value: 'Reflection', label: 'Reflections' },
-    { value: 'Learning', label: 'Learnings' },
-    { value: 'Decision', label: 'Decisions' },
-    { value: 'Problem', label: 'Problems' },
-    { value: 'Opportunity', label: 'Opportunities' },
+    ...customCategories.map(cat => ({ value: cat, label: cat }))
   ];
 
   const getFirstName = () => {
@@ -134,15 +149,38 @@ export default function DashboardPage() {
   };
 
   const getCategoryColor = (cat: string) => {
-    switch (cat) {
-      case 'Idea': return 'bg-violet-500/10 text-violet-400 border-violet-500/20';
-      case 'Goal': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case 'Reflection': return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
-      case 'Learning': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'Decision': return 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20';
-      case 'Problem': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
-      case 'Opportunity': return 'bg-teal-500/10 text-teal-400 border-teal-500/20';
-      default: return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
+    switch (cat.toLowerCase()) {
+      case 'idea':
+      case 'ideas': 
+        return 'bg-violet-500/10 text-violet-400 border-violet-500/20';
+      case 'goal':
+      case 'goals': 
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case 'reflection':
+      case 'reflections': 
+        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+      case 'learning':
+      case 'learnings': 
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'decision':
+      case 'decisions': 
+        return 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20';
+      case 'problem':
+      case 'problems': 
+        return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+      case 'opportunity':
+      case 'opportunities': 
+        return 'bg-teal-500/10 text-teal-400 border-teal-500/20';
+      case 'work':
+        return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+      case 'personal':
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case 'fitness':
+        return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+      case 'finance':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      default: 
+        return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
     }
   };
 
@@ -167,6 +205,15 @@ export default function DashboardPage() {
       }
     };
     fetchProfile();
+    setCustomCategories(getCustomCategories());
+
+    const handleUpdate = () => {
+      setCustomCategories(getCustomCategories());
+    };
+    window.addEventListener('customSettingsUpdated', handleUpdate);
+    return () => {
+      window.removeEventListener('customSettingsUpdated', handleUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -224,7 +271,13 @@ export default function DashboardPage() {
       const res = await fetch('/api/thoughts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ 
+          content,
+          customCategories: getCustomCategories(),
+          customTags: getCustomTags(),
+          customPriorities: getCustomPriorities().map(p => p.level),
+          customStatuses: getCustomStatuses().map(s => s.name)
+        }),
       });
 
       const data = await res.json();
@@ -255,6 +308,10 @@ export default function DashboardPage() {
       if (localTranscript) {
         formData.append('content', localTranscript);
       }
+      formData.append('customCategories', JSON.stringify(getCustomCategories()));
+      formData.append('customTags', JSON.stringify(getCustomTags()));
+      formData.append('customPriorities', JSON.stringify(getCustomPriorities().map(p => p.level)));
+      formData.append('customStatuses', JSON.stringify(getCustomStatuses().map(s => s.name)));
 
       const res = await fetch('/api/thoughts', {
         method: 'POST',
@@ -379,6 +436,46 @@ export default function DashboardPage() {
       console.error('Error saving outcome review:', err);
     } finally {
       setIsSubmittingReview(false);
+    }
+  };
+
+  const handleCreateActionItemForThought = async (thoughtId: string, category: string) => {
+    if (!thoughtTaskTitle.trim()) return;
+    setIsCreatingThoughtTask(thoughtId);
+    try {
+      const res = await fetch('/api/action-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          thoughtId,
+          title: thoughtTaskTitle.trim(),
+          priority: thoughtTaskPriority,
+          description: null,
+          category: category || 'Work',
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setThoughtsList((prev) =>
+          prev.map((t) => {
+            if (t.id === thoughtId) {
+              const currentActions = t.actionItems || [];
+              return {
+                ...t,
+                actionItems: [...currentActions, data.actionItem],
+              };
+            }
+            return t;
+          })
+        );
+        setThoughtTaskTitle('');
+        setThoughtTaskPriority('medium');
+      }
+    } catch (err) {
+      console.error('Error creating action item from thought:', err);
+    } finally {
+      setIsCreatingThoughtTask(null);
     }
   };
 
@@ -977,6 +1074,134 @@ export default function DashboardPage() {
                             </div>
                           )}
 
+                          {/* Associated Action Items */}
+                           <div className="space-y-3 mt-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <CheckSquare className="w-3.5 h-3.5" /> Action Items for this Thought
+                                </span>
+                                <Link 
+                                  href="/dashboard/actions" 
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[10px] text-zinc-500 hover:text-indigo-400 transition-colors flex items-center gap-0.5 font-bold cursor-pointer animate-fadeIn"
+                                >
+                                  Go to Action Center <ArrowUpRight className="w-3 h-3" />
+                                </Link>
+                              </div>
+
+                              {t.actionItems && t.actionItems.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {t.actionItems.map((action) => {
+                                    const getPriorityStyle = (p: string) => {
+                                      switch (p) {
+                                        case 'high': return 'text-rose-450 bg-rose-500/10 border-rose-500/20';
+                                        case 'medium': return 'text-amber-450 bg-amber-500/10 border-amber-500/20';
+                                        default: return 'text-emerald-450 bg-emerald-500/10 border-emerald-500/20';
+                                      }
+                                    };
+                                    
+                                    return (
+                                      <div 
+                                        key={action.id}
+                                        className="flex items-center justify-between bg-zinc-900/30 border border-zinc-900 p-2.5 rounded-lg hover:border-zinc-805 transition-all text-xs"
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0 pr-4">
+                                          {action.status === 'completed' && (
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                          )}
+                                          <span className={`truncate font-semibold ${action.status === 'completed' ? 'line-through text-zinc-505' : 'text-zinc-200'}`}>
+                                            {action.title}
+                                          </span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span className={`px-2 py-0.5 rounded text-[8px] font-bold border uppercase shrink-0 ${getPriorityStyle(action.priority)}`}>
+                                            {action.priority}
+                                          </span>
+                                          <Link 
+                                            href="/dashboard/actions" 
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="p-1 text-zinc-500 hover:text-white rounded transition-colors"
+                                            title="View in Action Center"
+                                          >
+                                            <ArrowUpRight className="w-3.5 h-3.5" />
+                                          </Link>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="text-zinc-600 text-xs italic">No active action items logged for this thought yet.</p>
+                              )}
+
+                              {/* Create Action Item from Thought Block (Similar to connections ledger form) */}
+                              <div className="bg-zinc-900/10 border border-zinc-900 rounded-xl p-3.5 space-y-3 mt-2" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
+                                  ⚡ Quick Add Action Item
+                                </span>
+                                <div className="flex flex-col gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Task title for this thought..."
+                                    value={expandedThoughtId === t.id ? thoughtTaskTitle : ''}
+                                    onChange={(e) => {
+                                      setExpandedThoughtId(t.id);
+                                      setThoughtTaskTitle(e.target.value);
+                                    }}
+                                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+                                  />
+                                  <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setExpandedThoughtId(t.id);
+                                          setCreateTaskPriorityOpen(!createTaskPriorityOpen);
+                                        }}
+                                        className="w-full h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-between capitalize"
+                                      >
+                                        <span>{thoughtTaskPriority} Priority</span>
+                                        <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+                                      </button>
+                                      {createTaskPriorityOpen && expandedThoughtId === t.id && (
+                                        <>
+                                          <div className="fixed inset-0 z-40" onClick={() => setCreateTaskPriorityOpen(false)} />
+                                          <div className="absolute left-0 bottom-full mb-1.5 z-50 w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl py-1 animate-fadeIn">
+                                            {['low', 'medium', 'high'].map((pri) => (
+                                              <button
+                                                key={pri}
+                                                type="button"
+                                                onClick={() => {
+                                                  setThoughtTaskPriority(pri as any);
+                                                  setCreateTaskPriorityOpen(false);
+                                                }}
+                                                className={`w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer block capitalize ${
+                                                  pri === thoughtTaskPriority
+                                                    ? 'bg-indigo-650/15 text-indigo-305 font-bold'
+                                                    : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                                                }`}
+                                              >
+                                                {pri}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => handleCreateActionItemForThought(t.id, t.category)}
+                                      disabled={isCreatingThoughtTask === t.id || !thoughtTaskTitle.trim()}
+                                      className="h-8 px-4 bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-indigo-500/10 flex items-center justify-center gap-1.5"
+                                    >
+                                      {isCreatingThoughtTask === t.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                      Add Task
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
                           {/* Tags */}
                           {t.tags.length > 0 && (
                             <div>
@@ -1076,19 +1301,46 @@ export default function DashboardPage() {
 
                 <div className="space-y-4 text-xs">
                   {/* Category */}
-                  <div>
+                  <div className="relative">
                     <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
                       Category
                     </label>
-                    <select
-                      value={editCategory}
-                      onChange={(e) => setEditCategory(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    
+                    <button
+                      type="button"
+                      onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500 text-left flex items-center justify-between cursor-pointer"
                     >
-                      {['Idea', 'Goal', 'Reflection', 'Learning', 'Decision', 'Problem', 'Opportunity'].map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                      <span className="font-medium text-xs">{editCategory || 'Select category'}</span>
+                      <svg className="h-4 w-4 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {categoryDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setCategoryDropdownOpen(false)} />
+                        <div className="absolute left-0 top-full mt-1.5 w-full bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl py-1 z-50 backdrop-blur-md max-h-48 overflow-y-auto">
+                          {getCustomCategories().map((cat) => (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => {
+                                setEditCategory(cat);
+                                setCategoryDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
+                                cat === editCategory 
+                                  ? 'bg-indigo-600/20 text-indigo-300 font-bold' 
+                                  : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                              }`}
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Summary */}
