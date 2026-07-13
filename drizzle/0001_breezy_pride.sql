@@ -1,0 +1,1 @@
+ALTER TABLE `thoughts` ADD `suggested_tasks` text;

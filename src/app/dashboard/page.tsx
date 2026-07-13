@@ -55,6 +55,12 @@ interface TimelineActionItem {
   status: 'pending' | 'in_progress' | 'completed' | 'dismissed';
 }
 
+interface SuggestedTask {
+  title: string;
+  description?: string;
+  priority?: 'high' | 'medium' | 'low';
+}
+
 interface Thought {
   id: string;
   content: string;
@@ -64,6 +70,7 @@ interface Thought {
   tags: string[];
   connections: Connection[];
   jarvisInsight?: string | null;
+  suggestedTasks?: SuggestedTask[];
   decision?: Decision | null;
   actionItems?: TimelineActionItem[];
   createdAt: number;
@@ -126,6 +133,10 @@ export default function DashboardPage() {
   const [thoughtTaskPriority, setThoughtTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [isCreatingThoughtTask, setIsCreatingThoughtTask] = useState<string | null>(null);
   const [createTaskPriorityOpen, setCreateTaskPriorityOpen] = useState(false);
+
+  // Suggested Tasks Promotion States
+  const [selectedSuggestedTasks, setSelectedSuggestedTasks] = useState<Record<string, string[]>>({});
+  const [isPromotingSuggested, setIsPromotingSuggested] = useState<string | null>(null);
 
   // Thought Deletion
   const [deleteThoughtId, setDeleteThoughtId] = useState<string | null>(null);
@@ -479,6 +490,86 @@ export default function DashboardPage() {
     }
   };
 
+  const handleToggleSuggestedTaskCheck = (thoughtId: string, taskTitle: string) => {
+    setSelectedSuggestedTasks((prev) => {
+      const currentSelected = prev[thoughtId] || [];
+      const isSelected = currentSelected.includes(taskTitle);
+      const nextSelected = isSelected
+        ? currentSelected.filter((t) => t !== taskTitle)
+        : [...currentSelected, taskTitle];
+      return {
+        ...prev,
+        [thoughtId]: nextSelected,
+      };
+    });
+  };
+
+  const handlePromoteSuggestedTasks = async (thought: Thought) => {
+    const selected = selectedSuggestedTasks[thought.id] || [];
+    if (selected.length === 0) return;
+
+    setIsPromotingSuggested(thought.id);
+    try {
+      const createdTasks: TimelineActionItem[] = [];
+      for (const title of selected) {
+        const suggested = thought.suggestedTasks?.find((s) => s.title === title);
+        const res = await fetch('/api/action-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thoughtId: thought.id,
+            title: suggested?.title || title,
+            description: suggested?.description || `AI-suggested task promoted from thought: "${thought.summary}".`,
+            priority: suggested?.priority || 'medium',
+            category: thought.category || 'General',
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          createdTasks.push({
+            id: data.actionItem.id,
+            title: data.actionItem.title,
+            priority: data.actionItem.priority,
+            status: data.actionItem.status,
+          });
+        }
+      }
+
+      const remainingSuggested = thought.suggestedTasks?.filter((s) => !selected.includes(s.title)) || [];
+
+      setThoughtsList((prev) =>
+        prev.map((t) => {
+          if (t.id === thought.id) {
+            return {
+              ...t,
+              suggestedTasks: remainingSuggested,
+              actionItems: [...(t.actionItems || []), ...createdTasks],
+            };
+          }
+          return t;
+        })
+      );
+
+      await fetch(`/api/thoughts/${thought.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          suggestedTasks: remainingSuggested,
+        }),
+      });
+
+      setSelectedSuggestedTasks((prev) => ({
+        ...prev,
+        [thought.id]: [],
+      }));
+    } catch (err) {
+      console.error('Failed to promote suggested tasks:', err);
+    } finally {
+      setIsPromotingSuggested(null);
+    }
+  };
+
   const toggleExpandThought = (id: string) => {
     setExpandedThoughtId((prev) => (prev === id ? null : id));
   };
@@ -788,8 +879,8 @@ export default function DashboardPage() {
                       }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-2">
-                        {/* Meta: date & category */}
-                        <div className="flex items-center gap-2">
+                        {/* Meta: date & category & tags */}
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold tracking-wide ${getCategoryColor(t.category)}`}>
                             {t.category}
                           </span>
@@ -797,6 +888,16 @@ export default function DashboardPage() {
                             <Calendar className="w-3 h-3" />
                             {new Date(t.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                           </span>
+                          {t.tags && t.tags.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap pl-2 border-l border-zinc-800">
+                              {t.tags.map((tag) => (
+                                <span key={tag} className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded bg-zinc-900/60 text-zinc-400 border border-zinc-800/40 font-medium">
+                                  <Tag className="w-2.5 h-2.5" />
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {/* Sentiment indicator & Actions */}
@@ -841,14 +942,13 @@ export default function DashboardPage() {
                           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </button>
                       </div>
-
                       {/* Expanded Details */}
                       {isExpanded && (
                         <div className="mt-4 pt-4 border-t border-zinc-900/60 space-y-4 cursor-default" onClick={(e) => e.stopPropagation()}>
                           {/* Original Content */}
                           <div>
                             <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
-                              Original thought
+                              My original thought
                             </span>
                             <p className="text-zinc-300 text-xs leading-relaxed bg-black/20 p-3 rounded-lg border border-zinc-900/80 white-space-pre-wrap select-text">
                               {t.content}
@@ -857,12 +957,12 @@ export default function DashboardPage() {
 
                           {/* JARVIS Proactive Insight */}
                           {t.jarvisInsight && (
-                            <div className="bg-indigo-950/10 border border-indigo-500/20 rounded-lg p-3.5 relative overflow-hidden group/jarvis">
+                            <div className="bg-indigo-955/10 border border-indigo-500/20 rounded-lg p-3.5 relative overflow-hidden group/jarvis">
                               <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-xl rounded-full pointer-events-none" />
                               <div className="flex items-center gap-1.5 mb-1.5">
                                 <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
                                 <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
-                                  JARVIS Proactive Insight
+                                  Jarvis Proactive insight
                                 </span>
                               </div>
                               <p className="text-zinc-200 text-xs leading-relaxed italic select-text">
@@ -878,7 +978,7 @@ export default function DashboardPage() {
                               {!t.decision && (
                                 <>
                                   {trackingThoughtId !== t.id ? (
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-fuchsia-500/15 bg-fuchsia-950/5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-fuchsia-500/15 bg-fuchsia-955/5">
                                       <div className="min-w-0 flex-1">
                                         <p className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-wider">
                                           🎯 Decision Outcome Tracking
@@ -895,13 +995,13 @@ export default function DashboardPage() {
                                       </button>
                                     </div>
                                   ) : (
-                                    <div className="space-y-3 p-3.5 rounded-lg border border-fuchsia-500/20 bg-fuchsia-950/10" onClick={(e) => e.stopPropagation()}>
+                                    <div className="space-y-3 p-3.5 rounded-lg border border-fuchsia-500/20 bg-fuchsia-955/10" onClick={(e) => e.stopPropagation()}>
                                       <span className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-wider block">
                                         Configure Decision Tracker
                                       </span>
                                       <div className="space-y-3">
                                         <div>
-                                          <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">
+                                          <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1">
                                             Expected Outcome Review Date
                                           </label>
                                           <input 
@@ -912,7 +1012,7 @@ export default function DashboardPage() {
                                           />
                                         </div>
                                         <div>
-                                          <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">
+                                          <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1">
                                             Success Metric (What does success look like?)
                                           </label>
                                           <textarea 
@@ -926,7 +1026,7 @@ export default function DashboardPage() {
                                         <div className="flex justify-end gap-2">
                                           <button 
                                             onClick={handleCancelTrack}
-                                            className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                                            className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-405 hover:text-white transition-all cursor-pointer"
                                           >
                                             Cancel
                                           </button>
@@ -959,7 +1059,7 @@ export default function DashboardPage() {
                                         </span>
                                       </div>
                                       <div className="space-y-1.5 text-xs">
-                                        <p className="text-zinc-500 font-bold text-[9px] uppercase tracking-wider">Success Metric:</p>
+                                        <p className="text-zinc-505 font-bold text-[9px] uppercase tracking-wider">Success Metric:</p>
                                         <p className="text-zinc-300 italic select-text">"{t.decision.successMetric}"</p>
                                       </div>
                                       {(Date.now() > t.decision.expectedOutcomeDate) && (
@@ -977,13 +1077,13 @@ export default function DashboardPage() {
                                       )}
                                     </div>
                                   ) : (
-                                    <div className="space-y-3 p-3.5 rounded-lg border border-amber-500/20 bg-amber-950/5" onClick={(e) => e.stopPropagation()}>
+                                    <div className="space-y-3 p-3.5 rounded-lg border border-amber-500/20 bg-amber-955/5" onClick={(e) => e.stopPropagation()}>
                                       <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
                                         Log Retrospective Outcome
                                       </span>
                                       <div className="space-y-3">
                                         <div>
-                                          <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                                          <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1.5">
                                             Retrospective Status
                                           </label>
                                           <div className="flex gap-2">
@@ -998,7 +1098,7 @@ export default function DashboardPage() {
                                                       : s === 'failed'
                                                         ? 'bg-rose-600/20 border-rose-500/40 text-rose-400 shadow-md shadow-rose-500/5'
                                                         : 'bg-zinc-800 border-zinc-700 text-zinc-300'
-                                                    : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-400'
+                                                    : 'bg-zinc-950 border-zinc-800 text-zinc-505 hover:text-zinc-400'
                                                 }`}
                                               >
                                                 {s}
@@ -1007,7 +1107,7 @@ export default function DashboardPage() {
                                           </div>
                                         </div>
                                         <div>
-                                          <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">
+                                          <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1">
                                             Retrospective Journal (What actually happened?)
                                           </label>
                                           <textarea 
@@ -1015,13 +1115,13 @@ export default function DashboardPage() {
                                             value={outcomeNotes}
                                             onChange={(e) => setOutcomeNotes(e.target.value)}
                                             rows={2}
-                                            className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                            className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-955 border border-zinc-800 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
                                           />
                                         </div>
                                         <div className="flex justify-end gap-2">
                                           <button 
                                             onClick={handleCancelReview}
-                                            className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                                            className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-405 hover:text-white transition-all cursor-pointer"
                                           >
                                             Cancel
                                           </button>
@@ -1042,29 +1142,29 @@ export default function DashboardPage() {
 
                               {/* Option C: Tracker configured & completed */}
                               {t.decision && t.decision.status !== 'pending' && (
-                                <div className="p-3.5 rounded-lg border border-zinc-900/60 bg-zinc-950/10">
+                                <div className="p-3.5 rounded-lg border border-zinc-900/60 bg-zinc-955/10">
                                   <div className="flex items-center justify-between mb-2 border-b border-zinc-900 pb-2">
                                     <span className={`text-[9px] px-2 py-0.5 rounded border font-extrabold tracking-wider uppercase ${
                                       t.decision.status === 'success' 
                                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                                         : t.decision.status === 'failed' 
                                           ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-                                          : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                          : 'bg-zinc-805 text-zinc-400 border-zinc-700'
                                     }`}>
                                       {t.decision.status} Outcome
                                     </span>
-                                    <span className="text-[10px] text-zinc-500 font-medium">
+                                    <span className="text-[10px] text-zinc-505 font-medium">
                                       Reviewed: {t.decision.reviewedAt ? new Date(t.decision.reviewedAt).toLocaleDateString() : ''}
                                     </span>
                                   </div>
                                   <div className="space-y-2.5 text-xs">
                                     <div>
-                                      <p className="text-zinc-500 font-bold text-[9px] uppercase tracking-wider">Expected Success Metric:</p>
+                                      <p className="text-zinc-505 font-bold text-[9px] uppercase tracking-wider">Expected Success Metric:</p>
                                       <p className="text-zinc-300 italic select-text">"{t.decision.successMetric}"</p>
                                     </div>
                                     {t.decision.outcomeNotes && (
                                       <div>
-                                        <p className="text-zinc-500 font-bold text-[9px] uppercase tracking-wider">Retrospective Journal:</p>
+                                        <p className="text-zinc-505 font-bold text-[9px] uppercase tracking-wider">Retrospective Journal:</p>
                                         <p className="text-zinc-300 leading-relaxed font-mono mt-0.5 select-text">{t.decision.outcomeNotes}</p>
                                       </div>
                                     )}
@@ -1075,138 +1175,207 @@ export default function DashboardPage() {
                           )}
 
                           {/* Associated Action Items */}
-                           <div className="space-y-3 mt-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                                  <CheckSquare className="w-3.5 h-3.5" /> Action Items for this Thought
-                                </span>
-                                <Link 
-                                  href="/dashboard/actions" 
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="text-[10px] text-zinc-500 hover:text-indigo-400 transition-colors flex items-center gap-0.5 font-bold cursor-pointer animate-fadeIn"
-                                >
-                                  Go to Action Center <ArrowUpRight className="w-3 h-3" />
-                                </Link>
-                              </div>
+                          <div className="space-y-3 mt-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <CheckSquare className="w-3.5 h-3.5" /> Current action items for this thought
+                              </span>
+                              <Link 
+                                href="/dashboard/actions" 
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[10px] text-zinc-505 hover:text-indigo-404 transition-colors flex items-center gap-0.5 font-bold cursor-pointer"
+                              >
+                                Go to Action Center <ArrowUpRight className="w-3 h-3" />
+                              </Link>
+                            </div>
 
-                              {t.actionItems && t.actionItems.length > 0 ? (
-                                <div className="space-y-1.5">
-                                  {t.actionItems.map((action) => {
-                                    const getPriorityStyle = (p: string) => {
-                                      switch (p) {
-                                        case 'high': return 'text-rose-450 bg-rose-500/10 border-rose-500/20';
-                                        case 'medium': return 'text-amber-450 bg-amber-500/10 border-amber-500/20';
-                                        default: return 'text-emerald-450 bg-emerald-500/10 border-emerald-500/20';
-                                      }
-                                    };
-                                    
-                                    return (
-                                      <div 
-                                        key={action.id}
-                                        className="flex items-center justify-between bg-zinc-900/30 border border-zinc-900 p-2.5 rounded-lg hover:border-zinc-805 transition-all text-xs"
-                                      >
-                                        <div className="flex items-center gap-2 min-w-0 pr-4">
-                                          {action.status === 'completed' && (
-                                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                                          )}
-                                          <span className={`truncate font-semibold ${action.status === 'completed' ? 'line-through text-zinc-505' : 'text-zinc-200'}`}>
-                                            {action.title}
-                                          </span>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-2 shrink-0">
-                                          <span className={`px-2 py-0.5 rounded text-[8px] font-bold border uppercase shrink-0 ${getPriorityStyle(action.priority)}`}>
-                                            {action.priority}
-                                          </span>
-                                          <Link 
-                                            href="/dashboard/actions" 
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="p-1 text-zinc-500 hover:text-white rounded transition-colors"
-                                            title="View in Action Center"
-                                          >
-                                            <ArrowUpRight className="w-3.5 h-3.5" />
-                                          </Link>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <p className="text-zinc-600 text-xs italic">No active action items logged for this thought yet.</p>
-                              )}
-
-                              {/* Create Action Item from Thought Block (Similar to connections ledger form) */}
-                              <div className="bg-zinc-900/10 border border-zinc-900 rounded-xl p-3.5 space-y-3 mt-2" onClick={(e) => e.stopPropagation()}>
-                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
-                                  ⚡ Quick Add Action Item
-                                </span>
-                                <div className="flex flex-col gap-2">
-                                  <input
-                                    type="text"
-                                    placeholder="Task title for this thought..."
-                                    value={expandedThoughtId === t.id ? thoughtTaskTitle : ''}
-                                    onChange={(e) => {
-                                      setExpandedThoughtId(t.id);
-                                      setThoughtTaskTitle(e.target.value);
-                                    }}
-                                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
-                                  />
-                                  <div className="flex gap-2">
-                                    <div className="relative flex-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setExpandedThoughtId(t.id);
-                                          setCreateTaskPriorityOpen(!createTaskPriorityOpen);
-                                        }}
-                                        className="w-full h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-between capitalize"
-                                      >
-                                        <span>{thoughtTaskPriority} Priority</span>
-                                        <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
-                                      </button>
-                                      {createTaskPriorityOpen && expandedThoughtId === t.id && (
-                                        <>
-                                          <div className="fixed inset-0 z-40" onClick={() => setCreateTaskPriorityOpen(false)} />
-                                          <div className="absolute left-0 bottom-full mb-1.5 z-50 w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl py-1 animate-fadeIn">
-                                            {['low', 'medium', 'high'].map((pri) => (
-                                              <button
-                                                key={pri}
-                                                type="button"
-                                                onClick={() => {
-                                                  setThoughtTaskPriority(pri as any);
-                                                  setCreateTaskPriorityOpen(false);
-                                                }}
-                                                className={`w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer block capitalize ${
-                                                  pri === thoughtTaskPriority
-                                                    ? 'bg-indigo-650/15 text-indigo-305 font-bold'
-                                                    : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
-                                                }`}
-                                              >
-                                                {pri}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                    <button
-                                      onClick={() => handleCreateActionItemForThought(t.id, t.category)}
-                                      disabled={isCreatingThoughtTask === t.id || !thoughtTaskTitle.trim()}
-                                      className="h-8 px-4 bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-indigo-500/10 flex items-center justify-center gap-1.5"
+                            {t.actionItems && t.actionItems.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {t.actionItems.map((action) => {
+                                  const getPriorityStyle = (p: string) => {
+                                    switch (p) {
+                                      case 'high': return 'text-rose-455 bg-rose-500/10 border-rose-500/20';
+                                      case 'medium': return 'text-amber-455 bg-amber-500/10 border-amber-500/20';
+                                      default: return 'text-emerald-455 bg-emerald-500/10 border-emerald-500/20';
+                                    }
+                                  };
+                                  
+                                  return (
+                                    <div 
+                                      key={action.id}
+                                      className="flex items-center justify-between bg-zinc-900/30 border border-zinc-900 p-2.5 rounded-lg hover:border-zinc-805 transition-all text-xs"
                                     >
-                                      {isCreatingThoughtTask === t.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                                      Add Task
+                                      <div className="flex items-center gap-2 min-w-0 pr-4">
+                                        {action.status === 'completed' && (
+                                          <CheckCircle2 className="w-4 h-4 text-emerald-450 shrink-0" />
+                                        )}
+                                        <span className={`truncate font-semibold ${action.status === 'completed' ? 'line-through text-zinc-505' : 'text-zinc-200'}`}>
+                                          {action.title}
+                                        </span>
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <span className={`px-2 py-0.5 rounded text-[8px] font-bold border uppercase shrink-0 ${getPriorityStyle(action.priority)}`}>
+                                          {action.priority}
+                                        </span>
+                                        <Link 
+                                          href="/dashboard/actions" 
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="p-1 text-zinc-505 hover:text-white rounded transition-colors"
+                                          title="View in Action Center"
+                                        >
+                                          <ArrowUpRight className="w-3.5 h-3.5" />
+                                        </Link>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-zinc-600 text-xs italic pl-1">No available tasks</p>
+                            )}
+
+                            {/* Create Action Item from Thought Block */}
+                            <div className="bg-zinc-900/10 border border-zinc-900 rounded-xl p-3.5 space-y-3 mt-2" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-[9px] font-bold text-zinc-550 uppercase tracking-wider block">
+                                ⚡ Quick Add Action Item
+                              </span>
+                              <div className="flex flex-col gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="Task title for this thought..."
+                                  value={expandedThoughtId === t.id ? thoughtTaskTitle : ''}
+                                  onChange={(e) => {
+                                    setExpandedThoughtId(t.id);
+                                    setThoughtTaskTitle(e.target.value);
+                                  }}
+                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+                                />
+                                <div className="flex gap-2">
+                                  <div className="relative flex-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedThoughtId(t.id);
+                                        setCreateTaskPriorityOpen(!createTaskPriorityOpen);
+                                      }}
+                                      className="w-full h-8 px-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-between capitalize"
+                                    >
+                                      <span>{thoughtTaskPriority} Priority</span>
+                                      <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
                                     </button>
+                                    {createTaskPriorityOpen && expandedThoughtId === t.id && (
+                                      <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setCreateTaskPriorityOpen(false)} />
+                                        <div className="absolute left-0 bottom-full mb-1.5 z-50 w-full bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl py-1 animate-fadeIn">
+                                          {['low', 'medium', 'high'].map((pri) => (
+                                            <button
+                                              key={pri}
+                                              type="button"
+                                              onClick={() => {
+                                                setThoughtTaskPriority(pri as any);
+                                                setCreateTaskPriorityOpen(false);
+                                              }}
+                                              className={`w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer block capitalize ${
+                                                pri === thoughtTaskPriority
+                                                  ? 'bg-indigo-650/15 text-indigo-305 font-bold'
+                                                  : 'text-zinc-400 hover:bg-zinc-905 hover:text-white'
+                                              }`}
+                                            >
+                                              {pri}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
+                                  <button
+                                    onClick={() => handleCreateActionItemForThought(t.id, t.category)}
+                                    disabled={isCreatingThoughtTask === t.id || !thoughtTaskTitle.trim()}
+                                    className="h-8 px-4 bg-indigo-650 hover:bg-indigo-600 active:scale-95 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-indigo-500/10 flex items-center justify-center gap-1.5"
+                                  >
+                                    {isCreatingThoughtTask === t.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                    Add Task
+                                  </button>
                                 </div>
                               </div>
                             </div>
+                          </div>
+
+                          {/* Jarvis Curated Tasks */}
+                          {t.suggestedTasks && t.suggestedTasks.length > 0 && (
+                            <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" /> Jarvis Curated tasks
+                                </span>
+                                {(selectedSuggestedTasks[t.id] || []).length > 0 && (
+                                  <button
+                                    onClick={() => handlePromoteSuggestedTasks(t)}
+                                    disabled={isPromotingSuggested === t.id}
+                                    className="text-[10px] px-3 py-1 rounded bg-indigo-650 hover:bg-indigo-600 text-white font-bold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {isPromotingSuggested === t.id ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <Plus className="w-3 h-3" />
+                                    )}
+                                    Add Tasks ({(selectedSuggestedTasks[t.id] || []).length})
+                                  </button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-1 gap-2">
+                                {t.suggestedTasks.map((s, idx) => {
+                                  const isChecked = (selectedSuggestedTasks[t.id] || []).includes(s.title);
+                                  const getPriorityStyle = (p: string) => {
+                                    switch (p) {
+                                      case 'high': return 'text-rose-455 bg-rose-500/10 border-rose-500/20';
+                                      case 'medium': return 'text-amber-455 bg-amber-500/10 border-amber-500/20';
+                                      default: return 'text-emerald-455 bg-emerald-500/10 border-emerald-500/20';
+                                    }
+                                  };
+
+                                  return (
+                                    <div
+                                      key={`${s.title}-${idx}`}
+                                      onClick={() => handleToggleSuggestedTaskCheck(t.id, s.title)}
+                                      className={`flex items-start gap-2.5 p-3 rounded-lg border bg-zinc-900/10 transition-all cursor-pointer select-none hover:bg-zinc-900/30 ${
+                                        isChecked 
+                                          ? 'border-indigo-500/30 bg-indigo-950/5' 
+                                          : 'border-zinc-900/85 hover:border-zinc-800'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => {}} // Handled by outer div click
+                                        className="mt-1 h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 cursor-pointer shrink-0"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <p className="text-zinc-200 text-xs font-semibold leading-relaxed truncate">{s.title}</p>
+                                          {s.priority && (
+                                            <span className={`px-1.5 py-0.2 rounded text-[7px] font-extrabold border uppercase shrink-0 ${getPriorityStyle(s.priority)}`}>
+                                              {s.priority}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {s.description && (
+                                          <p className="text-[10px] text-zinc-500 leading-normal mt-0.5">{s.description}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Tags */}
-                          {t.tags.length > 0 && (
+                          {t.tags && t.tags.length > 0 && (
                             <div>
                               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">
-                                AI extracted tags
+                                Tags
                               </span>
                               <div className="flex flex-wrap gap-1.5">
                                 {t.tags.map((tag) => (
@@ -1220,7 +1389,7 @@ export default function DashboardPage() {
                           )}
 
                           {/* Connected Thoughts */}
-                          {t.connections.length > 0 && (
+                          {t.connections && t.connections.length > 0 && (
                             <div>
                               <span className="text-[10px] font-bold text-indigo-400/80 uppercase tracking-wider block mb-2">
                                 Organic Mind Connections
@@ -1229,8 +1398,11 @@ export default function DashboardPage() {
                                 {t.connections.map((c) => (
                                   <div 
                                     key={c.relationshipId}
-                                    onClick={() => toggleExpandThought(c.thoughtId)}
-                                    className="flex items-center justify-between p-2.5 rounded-lg bg-indigo-950/5 hover:bg-indigo-950/15 border border-indigo-950/20 hover:border-indigo-500/20 cursor-pointer transition-all text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleExpandThought(c.thoughtId);
+                                    }}
+                                    className="flex items-center justify-between p-2.5 rounded-lg bg-indigo-955/5 hover:bg-indigo-955/15 border border-indigo-955/20 hover:border-indigo-500/20 cursor-pointer transition-all text-xs"
                                   >
                                     <div className="flex items-center gap-2 min-w-0 pr-4">
                                       <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold shrink-0 ${getCategoryColor(c.category)}`}>

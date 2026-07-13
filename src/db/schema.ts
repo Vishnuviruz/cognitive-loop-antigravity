@@ -25,6 +25,7 @@ export const thoughts = sqliteTable('thoughts', {
   tags: text('tags').notNull(), // JSON string representing string[]
   embedding: text('embedding').notNull(), // JSON string representing number[]
   jarvisInsight: text('jarvis_insight'),
+  suggestedTasks: text('suggested_tasks'), // JSON string representing { title: string, description?: string, priority?: string }[]
   parentId: text('parent_id'), // Self-referencing FK for threaded thoughts
   groupId: text('group_id'), // FK to thought_groups for organizing into folders
   createdAt: integer('created_at').notNull(),
@@ -116,3 +117,37 @@ export const actionItems = sqliteTable('action_items', {
   completedAt: integer('completed_at'),
   createdAt: integer('created_at').notNull(),
 });
+
+// Personal Knowledge Graph (PKG) Entities table
+export const entities = sqliteTable('entities', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // 'Project' | 'Technology' | 'Person' | 'Goal' | 'Concept'
+  description: text('description'),
+  aliases: text('aliases').notNull(), // JSON string representing string[]
+  activation: real('activation').default(1.0), // Active memory score
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+// PKG Entity Relationships table
+export const entityRelationships = sqliteTable('entity_relationships', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sourceEntityId: text('source_entity_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  targetEntityId: text('target_entity_id').notNull().references(() => entities.id, { onDelete: 'cascade' }),
+  relationshipType: text('relationship_type').notNull(), // 'Supports' | 'Contradicts' | 'Continues' | 'Implements' | 'Inspired By' | 'Depends On' | 'Blocks' | 'Solves' | 'Questions' | 'References'
+  confidence: real('confidence').notNull(),
+  reason: text('reason').notNull(),
+  supportingEvidence: text('supporting_evidence').notNull(), // JSON string array of thought IDs
+  contradictingEvidence: text('contradicting_evidence').notNull(), // JSON string array of thought IDs
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+// PKG Indexes for lookup performance
+export const entitiesUserIdx = index('entities_user_idx').on(entities.userId);
+export const entitiesNameIdx = index('entities_name_idx').on(entities.userId, entities.name);
+export const entityRelSourceIdx = index('entity_rel_source_idx').on(entityRelationships.sourceEntityId);
+export const entityRelTargetIdx = index('entity_rel_target_idx').on(entityRelationships.targetEntityId);

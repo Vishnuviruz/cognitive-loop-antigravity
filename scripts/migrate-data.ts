@@ -62,6 +62,20 @@ async function migrate() {
     await remoteDb.insert(schema.actionItems).values(actionItems).onConflictDoNothing();
   }
 
+  // 7. Migrate Entities (PKG Nodes)
+  const entities = await localDb.select().from(schema.entities);
+  if (entities.length > 0) {
+    console.log(`🧠 Migrating ${entities.length} PKG entities...`);
+    await remoteDb.insert(schema.entities).values(entities).onConflictDoNothing();
+  }
+
+  // 8. Migrate Entity Relationships (PKG Edges)
+  const entityRels = await localDb.select().from(schema.entityRelationships);
+  if (entityRels.length > 0) {
+    console.log(`🕸️ Migrating ${entityRels.length} PKG relationships...`);
+    await remoteDb.insert(schema.entityRelationships).values(entityRels).onConflictDoNothing();
+  }
+
   console.log('🎉 Data migration completed successfully!');
 }
 

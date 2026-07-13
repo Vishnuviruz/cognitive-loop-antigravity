@@ -8,6 +8,20 @@
       "when": 1783352906477,
       "tag": "0000_milky_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1783939131811,
+      "tag": "0001_breezy_pride",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783943881568,
+      "tag": "0002_military_vermin",
+      "breakpoints": true
     }
   ]
 }
