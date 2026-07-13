@@ -98,6 +98,8 @@ export interface ThoughtAnalysis {
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   jarvisInsight: string;
   actionItems: ActionItemExtract[];
+  isDecision: boolean;
+  decisionConfidence: number; // 0.0 – 1.0
 }
 
 export async function analyzeThought(
@@ -168,6 +170,11 @@ export async function analyzeThought(
       actionItems.push({ title: 'Review thought implications', description: 'Detail action steps matching this workspace log.', priority: pVal });
     }
 
+    // Decision detection in offline demo mode: keyword-based heuristic
+    const decisionKeywords = ['decided', 'decision', 'going to', 'will', 'commit', 'choose', 'chose', 'plan to', 'switching to', 'moving forward'];
+    const isDecision = decisionKeywords.some((kw) => lower.includes(kw));
+    const decisionConfidence = isDecision ? 0.6 : 0.0;
+
     return {
       summary,
       tags,
@@ -175,6 +182,8 @@ export async function analyzeThought(
       sentiment,
       jarvisInsight,
       actionItems,
+      isDecision,
+      decisionConfidence,
     };
   }
 
@@ -201,6 +210,8 @@ You must respond with a JSON object matching this structure:
   "category": "One category from the configured categories list only",
   "sentiment": "One of: 'Positive', 'Neutral', 'Negative'",
   "jarvisInsight": "A proactive recommendation, design question, technical standard, or business insight related to this thought. You must act as a world-class multi-disciplinary expert (e.g. software architect, venture capitalist, neuroscientist) depending on the thought topic. Address the user directly by their first name (\\"${name}\\") and never use honorifics like \\"Sir\\".",
+  "isDecision": "boolean — true if this thought represents a committed decision, action plan, goal commitment, or choice that the user is locking in",
+  "decisionConfidence": "float 0.0–1.0 — how confident you are that this is a committed decision (>= 0.75 means high confidence)",
   "actionItems": [
     {
       "title": "Short, actionable task title (e.g. 'Research competitor pricing models')",
@@ -210,7 +221,8 @@ You must respond with a JSON object matching this structure:
   ]
 }
 
-For actionItems: Extract 0 to 3 concrete, actionable tasks from the thought. If the thought is purely reflective with no clear next steps, return an empty array []. Focus on tasks that would move the needle — research, prototyping, outreach, validation, etc.`,
+For actionItems: Extract 0 to 3 concrete, actionable tasks from the thought. If the thought is purely reflective with no clear next steps, return an empty array []. Focus on tasks that would move the needle — research, prototyping, outreach, validation, etc.
+For isDecision: Only mark true for clear commitments or choices (e.g. "I decided to...", "I'm going to switch to...", "We will use..."). Exploratory thoughts are NOT decisions.`,
         },
         {
           role: 'user',

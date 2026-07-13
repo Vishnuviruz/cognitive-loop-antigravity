@@ -1,0 +1,1 @@
+ALTER TABLE `decisions` ADD `title` text DEFAULT 'Decision Commitment' NOT NULL;

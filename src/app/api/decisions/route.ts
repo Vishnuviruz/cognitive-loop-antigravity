@@ -13,11 +13,12 @@ export async function GET() {
       return NextResponse.json({ error: 'unauthorized', message: 'Unauthorized access' }, { status: 401 });
     }
 
-    // Query decisions and join thoughts to obtain original notes context
+    // Query decisions, pulling title directly from decisions table, and join thoughts for the parent context note
     const list = await db
       .select({
         id: decisions.id,
         thoughtId: decisions.thoughtId,
+        title: decisions.title,
         expectedOutcomeDate: decisions.expectedOutcomeDate,
         successMetric: decisions.successMetric,
         status: decisions.status,
@@ -42,7 +43,7 @@ export async function GET() {
   }
 }
 
-// POST /api/decisions - Create a new decision tracker for a thought
+// POST /api/decisions - Create a new decision tracker mapped to a parent thought
 export async function POST(request: Request) {
   try {
     const user = await getSessionUser();
@@ -50,16 +51,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'unauthorized', message: 'Unauthorized access' }, { status: 401 });
     }
 
-    const { thoughtId, expectedOutcomeDate, successMetric } = await request.json();
+    const { thoughtId, title, expectedOutcomeDate, successMetric } = await request.json();
 
-    if (!thoughtId || !expectedOutcomeDate || !successMetric || successMetric.trim() === '') {
+    if (!thoughtId || thoughtId === 'new' || !title || title.trim() === '' || !expectedOutcomeDate || !successMetric || successMetric.trim() === '') {
       return NextResponse.json(
-        { error: 'bad_request', message: 'Missing thoughtId, expectedOutcomeDate, or successMetric' },
+        { error: 'bad_request', message: 'Missing thoughtId, title, expectedOutcomeDate, or successMetric' },
         { status: 400 }
       );
     }
 
-    // Verify thought exists and belongs to the user
+    // 1. Verify parent thought exists and belongs to the user
     const targetThought = await db.query.thoughts.findFirst({
       where: eq(thoughts.id, thoughtId),
     });
@@ -68,24 +69,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'not_found', message: 'Associated thought not found' }, { status: 404 });
     }
 
-    // Verify no existing tracker exists for this thought
-    const existingTracker = await db.query.decisions.findFirst({
-      where: eq(decisions.thoughtId, thoughtId),
-    });
-
-    if (existingTracker) {
-      return NextResponse.json(
-        { error: 'already_exists', message: 'This thought is already being tracked' },
-        { status: 400 }
-      );
-    }
-
     const decisionId = crypto.randomUUID();
 
+    // 2. Create the decision tracker row linked to the parent thought
     await db.insert(decisions).values({
       id: decisionId,
       userId: user.id,
       thoughtId,
+      title: title.trim(),
       expectedOutcomeDate: Number(expectedOutcomeDate),
       successMetric: successMetric.trim(),
       status: 'pending',
@@ -105,3 +96,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

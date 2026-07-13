@@ -34,10 +34,11 @@ export default function Sidebar({ user }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navigation = [
-    { name: 'Timeline & Capture', href: '/dashboard', icon: Activity },
-    { name: 'Connections Graph', href: '/dashboard/connections', icon: Network },
-    { name: 'Action Center', href: '/dashboard/actions', icon: CheckSquare },
-    { name: 'Customise Settings', href: '/dashboard/settings', icon: Settings },
+    { name: '+ Add Thoughts', href: '/dashboard', icon: Activity },
+    { name: 'Connections & Ideas', href: '/dashboard/connections', icon: Network },
+    { name: 'Decisions', href: '/dashboard/decisions', icon: GitMerge },
+    { name: 'Tasks', href: '/dashboard/actions', icon: CheckSquare },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
 
   const handleLogout = async () => {

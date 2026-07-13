@@ -31,6 +31,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { ClusterControls } from './ClusterControls';
+import { PKGExplorer } from './PKGExplorer';
 
 interface Connection {
   relationshipId: string;
@@ -107,7 +108,7 @@ export default function ConnectionsPage() {
   // Mobile active tab state ('map' | 'details')
   const [activeTab, setActiveTab] = useState<'map' | 'details'>('map');
 
-
+  const [activeView, setActiveView] = useState<'mindmap' | 'pkg'>('mindmap');
   useEffect(() => {
     fetchThoughts();
   }, []);
@@ -474,21 +475,48 @@ export default function ConnectionsPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-40 glass-panel rounded-2xl border-zinc-800/80">
-          <Loader2 className="w-10 h-10 animate-spin text-indigo-400 mb-2" />
-          <span className="text-zinc-500 text-sm">Rendering mind map...</span>
-        </div>
-      ) : thoughts.length === 0 ? (
-        <div className="py-20 text-center glass-panel border-dashed rounded-2xl p-8 border-zinc-800">
-          <Network className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-          <h3 className="text-sm font-semibold text-zinc-300">No connections mapped</h3>
-          <p className="text-zinc-500 text-xs max-w-sm mx-auto mt-1">
-            Capture at least two thoughts that share related words, technologies or goals to generate links.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
+      {/* View Selector Tabs */}
+      <div className="flex bg-zinc-950/60 p-1.5 rounded-xl border border-zinc-900 w-full max-w-md select-none">
+        <button
+          type="button"
+          onClick={() => setActiveView('mindmap')}
+          className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeView === 'mindmap'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          <Network className="w-4 h-4" /> Thought Mind Map
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveView('pkg')}
+          className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeView === 'pkg'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          <Layers className="w-4 h-4" /> Knowledge Graph (PKG)
+        </button>
+      </div>
+
+      {activeView === 'mindmap' ? (
+        loading ? (
+          <div className="flex flex-col items-center justify-center py-40 glass-panel rounded-2xl border-zinc-800/80">
+            <Loader2 className="w-10 h-10 animate-spin text-indigo-400 mb-2" />
+            <span className="text-zinc-500 text-sm">Rendering mind map...</span>
+          </div>
+        ) : thoughts.length === 0 ? (
+          <div className="py-20 text-center glass-panel border-dashed rounded-2xl p-8 border-zinc-800">
+            <Network className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+            <h3 className="text-sm font-semibold text-zinc-300">No connections mapped</h3>
+            <p className="text-zinc-500 text-xs max-w-sm mx-auto mt-1">
+              Capture at least two thoughts that share related words, technologies or goals to generate links.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
           {/* Mobile Segmented Tab Switcher */}
           <div className="flex lg:hidden bg-zinc-950/60 p-1 rounded-xl border border-zinc-900 w-full max-w-sm mx-auto select-none">
             <button
@@ -1529,6 +1557,8 @@ export default function ConnectionsPage() {
 
           </div>
         </div>
+      ) ) : (
+        <PKGExplorer />
       )}
 
       {/* Create Link Modal */}

@@ -5,6 +5,8 @@ import { getSessionUser } from '@/lib/auth';
 import { eq, and, like, desc, or, ne } from 'drizzle-orm';
 import { analyzeThought, getEmbedding, transcribeAudio } from '@/lib/groq';
 import crypto from 'crypto';
+import { processThoughtPKG } from '@/lib/pkg';
+import { createDecisionFromThought } from '@/lib/decisions';
 
 // Cosine similarity utility
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -94,14 +96,17 @@ export async function GET(request: Request) {
           };
         });
 
-      const decisionRecord = userDecisions.find((d) => d.thoughtId === t.id);
+      const associatedDecisions = userDecisions.filter((d) => d.thoughtId === t.id);
+      const decisionRecord = associatedDecisions[0] || null;
       const associatedActions = userActionItems.filter((item) => item.thoughtId === t.id);
 
       return {
         ...t,
         tags: JSON.parse(t.tags) as string[],
+        suggestedTasks: t.suggestedTasks ? (JSON.parse(t.suggestedTasks) as any[]) : [],
         connections,
-        decision: decisionRecord || null,
+        decision: decisionRecord,
+        decisions: associatedDecisions,
         actionItems: associatedActions,
       };
     });
@@ -199,6 +204,7 @@ export async function POST(request: Request) {
       tags: JSON.stringify(analysis.tags),
       embedding: JSON.stringify(embedding),
       jarvisInsight: analysis.jarvisInsight,
+      suggestedTasks: JSON.stringify(analysis.actionItems || []),
       createdAt: Date.now(),
     });
 
@@ -238,32 +244,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Save any JARVIS-extracted action items
-    const savedActionItems = [];
-    if (analysis.actionItems && analysis.actionItems.length > 0) {
-      for (const item of analysis.actionItems) {
-        const actionItemId = crypto.randomUUID();
-        await db.insert(actionItems).values({
-          id: actionItemId,
-          userId: user.id,
-          thoughtId: newThoughtId,
-          title: item.title,
-          description: item.description || null,
-          priority: item.priority || 'medium',
-          status: 'pending',
-          category: analysis.category,
-          dueDate: null,
-          completedAt: null,
-          createdAt: Date.now(),
-        });
-        savedActionItems.push({
-          id: actionItemId,
-          title: item.title,
-          priority: item.priority || 'medium',
-          status: 'pending',
-        });
-      }
-      console.log(`Saved ${analysis.actionItems.length} action items for thought ${newThoughtId}`);
+    // Trigger Slow Path PKG extraction & relationship mappings in background
+    processThoughtPKG(newThoughtId, user.id).catch((err) => {
+      console.error('[PKG Ingestion Hook] Background extraction error:', err);
+    });
+
+    // Trigger Slow Path decision auto-capture if AI is highly confident
+    if (analysis.isDecision && analysis.decisionConfidence >= 0.75) {
+      createDecisionFromThought(newThoughtId, user.id).catch((err) => {
+        console.error('[Decision Hook] Auto-capture error:', err);
+      });
     }
 
     return NextResponse.json({
@@ -276,9 +266,12 @@ export async function POST(request: Request) {
         sentiment: analysis.sentiment,
         tags: analysis.tags,
         jarvisInsight: analysis.jarvisInsight,
-        actionItems: savedActionItems,
+        suggestedTasks: analysis.actionItems || [],
+        actionItems: [],
         connections: newConnections,
         createdAt: Date.now(),
+        isDecision: analysis.isDecision ?? false,
+        decisionConfidence: analysis.decisionConfidence ?? 0,
       },
     });
   } catch (error: any) {
