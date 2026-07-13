@@ -28,4 +28,12 @@ This folder documents the incremental development milestones and code releases o
 
 ### 6. [Phase 6: Personal Knowledge Graph Integration](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Trajectory/Phase%206%20-%20Personal%20Knowledge%20Graph%20Integration.md)
 *   **Release Focus**: Normalized entities graph, synonym resolution, explainable relationship evaluation, and the interactive tabbed Knowledge Explorer timeline UI.
-*   **Read last** to explore how individual thoughts are transformed into an explainable network of concepts.
+*   **Read sixth** to explore how individual thoughts are transformed into an explainable network of concepts.
+
+### 7. [Phase 7: Decision Intelligence](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Trajectory/Phase%207%20-%20Decision%20Intelligence.md)
+*   **Release Focus**: Adding structured commitment logging, outcome reviews, automatic decision analysis, and lesson extraction workflows.
+*   **Read seventh** to examine how retrospective outcome evaluations are linked to parent thought context.
+
+### 8. [Phase 8: Interface Refinement](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Trajectory/Phase%208%20-%20Interface%20Refinement.md)
+*   **Release Focus**: Reordering, simplifying menu links, and renaming elements to simple action-oriented terms: "+ Add Thoughts", "Connections & Ideas", "Decisions", "Tasks", and "Settings".
+*   **Read last** to examine how navigation controls were streamlined.

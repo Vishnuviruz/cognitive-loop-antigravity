@@ -72,6 +72,7 @@ interface Thought {
   jarvisInsight?: string | null;
   suggestedTasks?: SuggestedTask[];
   decision?: Decision | null;
+  decisions?: Decision[] | null;
   actionItems?: TimelineActionItem[];
   createdAt: number;
 }
@@ -101,6 +102,7 @@ export default function DashboardPage() {
   // Decision Tracking State variables
   const [trackingThoughtId, setTrackingThoughtId] = useState<string | null>(null);
   const [expectedOutcomeDate, setExpectedOutcomeDate] = useState('');
+  const [decisionTitle, setDecisionTitle] = useState('');
   const [successMetric, setSuccessMetric] = useState('');
   const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
 
@@ -359,12 +361,13 @@ export default function DashboardPage() {
     }
   };
 
-  const handleStartTrack = (thoughtId: string) => {
-    setTrackingThoughtId(thoughtId);
+  const handleStartTrack = (thoughtObj: Thought) => {
+    setTrackingThoughtId(thoughtObj.id);
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
     const dateString = nextWeek.toISOString().split('T')[0];
     setExpectedOutcomeDate(dateString);
+    setDecisionTitle(thoughtObj.content || '');
     setSuccessMetric('');
   };
 
@@ -373,7 +376,7 @@ export default function DashboardPage() {
   };
 
   const handleSaveTrack = async (thoughtId: string) => {
-    if (!expectedOutcomeDate || !successMetric.trim()) {
+    if (!decisionTitle.trim() || !expectedOutcomeDate || !successMetric.trim()) {
       alert('Please fill out all fields.');
       return;
     }
@@ -386,6 +389,7 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           thoughtId,
+          title: decisionTitle.trim(),
           expectedOutcomeDate: outcomeTimestamp,
           successMetric: successMetric.trim()
         })
@@ -393,9 +397,8 @@ export default function DashboardPage() {
 
       const data = await res.json();
       if (res.ok) {
-        setThoughtsList((prev) =>
-          prev.map((t) => (t.id === thoughtId ? { ...t, decision: data.decision } : t))
-        );
+        // Fetch thoughts list to update decisions state cleanly
+        await fetchThoughts();
         setTrackingThoughtId(null);
       } else {
         alert(data.message || 'Failed to save decision tracker.');
@@ -969,210 +972,175 @@ export default function DashboardPage() {
                                 "{t.jarvisInsight}"
                               </p>
                             </div>
-                          )}
-
-                          {/* Decision Ledger Outcome Tracker */}
-                          {t.category === 'Decision' && (
-                            <div className="space-y-3 mt-1">
-                              {/* Option A: No tracker configured yet */}
-                              {!t.decision && (
-                                <>
-                                  {trackingThoughtId !== t.id ? (
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-fuchsia-500/15 bg-fuchsia-955/5">
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-wider">
-                                          🎯 Decision Outcome Tracking
-                                        </p>
-                                        <p className="text-zinc-500 text-[10px] mt-0.5 leading-relaxed">
-                                          Log success metrics and outcome review dates to track decision accuracy.
-                                        </p>
-                                      </div>
-                                      <button 
-                                        onClick={(e) => { e.stopPropagation(); handleStartTrack(t.id); }}
-                                        className="text-[10px] px-3.5 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-semibold transition-all shadow-md shadow-fuchsia-500/10 cursor-pointer shrink-0"
-                                      >
-                                        Track Decision
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-3 p-3.5 rounded-lg border border-fuchsia-500/20 bg-fuchsia-955/10" onClick={(e) => e.stopPropagation()}>
-                                      <span className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-wider block">
-                                        Configure Decision Tracker
+                          )}                          {/* Associated Decisions List Section */}
+                          <div className="space-y-3 mt-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <GitMerge className="w-3.5 h-3.5" /> Current decisions for this thought
+                              </span>
+                              <Link 
+                                href="/dashboard/decisions" 
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[10px] text-zinc-505 hover:text-fuchsia-400 transition-colors flex items-center gap-0.5 font-bold cursor-pointer"
+                              >
+                                Go to Decisions Ledger <ArrowUpRight className="w-3 h-3" />
+                              </Link>
+                            </div>                            {t.decisions && t.decisions.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {t.decisions.map((dec: any) => (
+                                  <div 
+                                    key={dec.id}
+                                    className="flex flex-col gap-1.5 bg-zinc-900/30 border border-zinc-900 p-2.5 rounded-lg hover:border-zinc-800 transition-all text-xs"
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="truncate font-semibold text-zinc-200">
+                                        👉 {dec.title}
                                       </span>
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1">
-                                            Expected Outcome Review Date
-                                          </label>
-                                          <input 
-                                            type="date"
-                                            value={expectedOutcomeDate}
-                                            onChange={(e) => setExpectedOutcomeDate(e.target.value)}
-                                            className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-white focus:outline-none focus:ring-1 focus:ring-fuchsia-500"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1">
-                                            Success Metric (What does success look like?)
-                                          </label>
-                                          <textarea 
-                                            placeholder="E.g. Conversion rate increases by 5%, or page loads in under 300ms..."
-                                            value={successMetric}
-                                            onChange={(e) => setSuccessMetric(e.target.value)}
-                                            rows={2}
-                                            className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-955 border border-zinc-800 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-fuchsia-500"
-                                          />
-                                        </div>
-                                        <div className="flex justify-end gap-2">
-                                          <button 
-                                            onClick={handleCancelTrack}
-                                            className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-405 hover:text-white transition-all cursor-pointer"
-                                          >
-                                            Cancel
-                                          </button>
-                                          <button 
-                                            onClick={() => handleSaveTrack(t.id)}
-                                            disabled={isSubmittingDecision}
-                                            className="text-[10px] px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-semibold transition-all cursor-pointer flex items-center gap-1"
-                                          >
-                                            {isSubmittingDecision && <Loader2 className="w-3 h-3 animate-spin" />}
-                                            Activate Tracker
-                                          </button>
-                                        </div>
-                                      </div>
+                                      <span className={`px-2 py-0.5 rounded text-[8px] font-bold border uppercase shrink-0 ${
+                                        dec.status === 'pending'
+                                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                          : dec.status === 'success'
+                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                            : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                      }`}>
+                                        {dec.status}
+                                      </span>
                                     </div>
-                                  )}
-                                </>
-                              )}
-
-                              {/* Option B: Tracker configured & pending */}
-                              {t.decision && t.decision.status === 'pending' && (
-                                <>
-                                  {reviewingDecisionId !== t.decision.id ? (
-                                    <div className="p-3.5 rounded-lg border border-zinc-900 bg-zinc-950/20">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 font-semibold tracking-wide">
-                                          ⏳ Outcome Pending
-                                        </span>
-                                        <span className="text-[10px] text-zinc-500 font-medium">
-                                          Due: {new Date(t.decision.expectedOutcomeDate).toLocaleDateString()}
-                                        </span>
-                                      </div>
-                                      <div className="space-y-1.5 text-xs">
-                                        <p className="text-zinc-505 font-bold text-[9px] uppercase tracking-wider">Success Metric:</p>
-                                        <p className="text-zinc-300 italic select-text">"{t.decision.successMetric}"</p>
-                                      </div>
-                                      {(Date.now() > t.decision.expectedOutcomeDate) && (
-                                        <div className="mt-3 pt-3 border-t border-zinc-900 flex items-center justify-between gap-4">
-                                          <p className="text-[10px] text-amber-400 flex items-center gap-1 font-semibold">
-                                            <AlertCircle className="w-3.5 h-3.5" /> Outcome review is due!
-                                          </p>
-                                          <button 
-                                            onClick={(e) => { e.stopPropagation(); handleStartReview(t.decision!); }}
-                                            className="text-[10px] px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-all shadow-md shadow-amber-500/10 cursor-pointer shrink-0"
-                                          >
-                                            Log Outcome
-                                          </button>
-                                        </div>
+                                    <div className="text-[10px] text-zinc-400 pl-4 space-y-0.5">
+                                      <p>Expectation: <span className="text-zinc-300 italic">"{dec.successMetric}"</span></p>
+                                      {dec.outcomeNotes && (
+                                        <p className="text-zinc-500">Journal: {dec.outcomeNotes}</p>
                                       )}
                                     </div>
-                                  ) : (
-                                    <div className="space-y-3 p-3.5 rounded-lg border border-amber-500/20 bg-amber-955/5" onClick={(e) => e.stopPropagation()}>
-                                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-                                        Log Retrospective Outcome
-                                      </span>
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1.5">
-                                            Retrospective Status
-                                          </label>
-                                          <div className="flex gap-2">
-                                            {(['success', 'failed', 'neutral'] as const).map((s) => (
-                                              <button
-                                                key={s}
-                                                onClick={() => setOutcomeStatus(s)}
-                                                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize ${
-                                                  outcomeStatus === s
-                                                    ? s === 'success'
-                                                      ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-400 shadow-md shadow-emerald-500/5'
-                                                      : s === 'failed'
-                                                        ? 'bg-rose-600/20 border-rose-500/40 text-rose-400 shadow-md shadow-rose-500/5'
-                                                        : 'bg-zinc-800 border-zinc-700 text-zinc-300'
-                                                    : 'bg-zinc-950 border-zinc-800 text-zinc-505 hover:text-zinc-400'
-                                                }`}
-                                              >
-                                                {s}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1">
-                                            Retrospective Journal (What actually happened?)
-                                          </label>
-                                          <textarea 
-                                            placeholder="Detail what happened, why it succeeded/failed, and lessons learned..."
-                                            value={outcomeNotes}
-                                            onChange={(e) => setOutcomeNotes(e.target.value)}
-                                            rows={2}
-                                            className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-955 border border-zinc-800 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                          />
-                                        </div>
-                                        <div className="flex justify-end gap-2">
-                                          <button 
-                                            onClick={handleCancelReview}
-                                            className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-405 hover:text-white transition-all cursor-pointer"
-                                          >
-                                            Cancel
-                                          </button>
-                                          <button 
-                                            onClick={() => handleSaveReview(t.decision!.id, t.id)}
-                                            disabled={isSubmittingReview}
-                                            className="text-[10px] px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-all cursor-pointer flex items-center gap-1"
-                                          >
-                                            {isSubmittingReview && <Loader2 className="w-3 h-3 animate-spin" />}
-                                            Log Outcome
-                                          </button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-
-                              {/* Option C: Tracker configured & completed */}
-                              {t.decision && t.decision.status !== 'pending' && (
-                                <div className="p-3.5 rounded-lg border border-zinc-900/60 bg-zinc-955/10">
-                                  <div className="flex items-center justify-between mb-2 border-b border-zinc-900 pb-2">
-                                    <span className={`text-[9px] px-2 py-0.5 rounded border font-extrabold tracking-wider uppercase ${
-                                      t.decision.status === 'success' 
-                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                                        : t.decision.status === 'failed' 
-                                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-                                          : 'bg-zinc-805 text-zinc-400 border-zinc-700'
-                                    }`}>
-                                      {t.decision.status} Outcome
-                                    </span>
-                                    <span className="text-[10px] text-zinc-505 font-medium">
-                                      Reviewed: {t.decision.reviewedAt ? new Date(t.decision.reviewedAt).toLocaleDateString() : ''}
-                                    </span>
                                   </div>
-                                  <div className="space-y-2.5 text-xs">
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-zinc-600 text-xs italic pl-1">No tracked decisions for this thought</p>
+                            )}
+
+                            {/* Create Decision Tracker Block - Always Available (like Quick Add Action Item) */}
+                            <div className="bg-zinc-900/10 border border-zinc-900 rounded-xl p-3.5 space-y-3 mt-2" onClick={(e) => e.stopPropagation()}>
+                              {trackingThoughtId !== t.id ? (
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <span className="text-[9px] font-bold text-zinc-550 uppercase tracking-wider block">
+                                      ⚡ Track New Decision
+                                    </span>
+                                    <p className="text-zinc-505 text-[10px] leading-relaxed mt-0.5">
+                                      Log custom success criteria and expected dates to track outcome accuracy.
+                                    </p>
+                                  </div>
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleStartTrack(t); }}
+                                    className="text-[10px] px-3.5 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-semibold transition-all shadow-md shadow-fuchsia-500/10 cursor-pointer shrink-0"
+                                  >
+                                    Track Decision
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  <span className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-wider block">
+                                    Configure Decision Tracker
+                                  </span>
+                                  <div className="space-y-3">
                                     <div>
-                                      <p className="text-zinc-505 font-bold text-[9px] uppercase tracking-wider">Expected Success Metric:</p>
-                                      <p className="text-zinc-300 italic select-text">"{t.decision.successMetric}"</p>
+                                      <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1">
+                                        Decision Title / Note (What is the commitment?)
+                                      </label>
+                                      <textarea 
+                                        placeholder="E.g. Switch platform frontend to Next.js..."
+                                        value={decisionTitle}
+                                        onChange={(e) => setDecisionTitle(e.target.value)}
+                                        rows={2}
+                                        className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-fuchsia-500"
+                                      />
                                     </div>
-                                    {t.decision.outcomeNotes && (
-                                      <div>
-                                        <p className="text-zinc-505 font-bold text-[9px] uppercase tracking-wider">Retrospective Journal:</p>
-                                        <p className="text-zinc-300 leading-relaxed font-mono mt-0.5 select-text">{t.decision.outcomeNotes}</p>
+                                    <div>
+                                      <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1.5 flex justify-between items-center">
+                                        <span>Expected Outcome Review Date</span>
+                                        <span className="text-[8px] text-zinc-650 font-normal">Timeline presets:</span>
+                                      </label>
+                                      
+                                      {/* Preset Timeline Buttons */}
+                                      <div className="flex gap-2 mb-2">
+                                        {[
+                                          { label: '7 Days', days: 7 },
+                                          { label: '30 Days', days: 30 },
+                                          { label: '90 Days', days: 90 },
+                                        ].map((preset) => {
+                                          const targetDate = new Date();
+                                          targetDate.setDate(targetDate.getDate() + preset.days);
+                                          const isSelected = expectedOutcomeDate === targetDate.toISOString().split('T')[0];
+                                          return (
+                                            <button
+                                              key={preset.label}
+                                              type="button"
+                                              onClick={() => {
+                                                const d = new Date();
+                                                d.setDate(d.getDate() + preset.days);
+                                                setExpectedOutcomeDate(d.toISOString().split('T')[0]);
+                                              }}
+                                              className={`flex-1 py-1 rounded text-[9px] font-bold border transition-all cursor-pointer ${
+                                                isSelected
+                                                  ? 'bg-fuchsia-600/20 border-fuchsia-500/40 text-fuchsia-300'
+                                                  : 'bg-zinc-950 border-zinc-900 text-zinc-505 hover:text-zinc-350'
+                                              }`}
+                                            >
+                                              +{preset.label}
+                                            </button>
+                                          );
+                                        })}
                                       </div>
-                                    )}
+
+                                      <div className="relative">
+                                        <input 
+                                          type="date"
+                                          value={expectedOutcomeDate}
+                                          onChange={(e) => setExpectedOutcomeDate(e.target.value)}
+                                          onClick={(e) => {
+                                            try {
+                                              (e.target as any).showPicker();
+                                            } catch (err) {}
+                                          }}
+                                          className="w-full text-xs px-3 py-2 pr-9 rounded-lg bg-zinc-950 border border-zinc-800 text-white focus:outline-none focus:ring-1 focus:ring-fuchsia-500 select-none cursor-pointer"
+                                        />
+                                        <Calendar className="w-3.5 h-3.5 text-zinc-550 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="text-[9px] text-zinc-505 font-bold uppercase tracking-wider block mb-1">
+                                        Success Metric (What does success look like?)
+                                      </label>
+                                      <textarea 
+                                        placeholder="E.g. Conversion rate increases by 5%, or page loads in under 300ms..."
+                                        value={successMetric}
+                                        onChange={(e) => setSuccessMetric(e.target.value)}
+                                        rows={2}
+                                        className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-955 border border-zinc-800 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-fuchsia-500"
+                                      />
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                      <button 
+                                        onClick={handleCancelTrack}
+                                        className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-405 hover:text-white transition-all cursor-pointer"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button 
+                                        onClick={() => handleSaveTrack(t.id)}
+                                        disabled={isSubmittingDecision}
+                                        className="text-[10px] px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                      >
+                                        {isSubmittingDecision && <Loader2 className="w-3 h-3 animate-spin" />}
+                                        Activate Tracker
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               )}
                             </div>
-                          )}
+                          </div>
 
                           {/* Associated Action Items */}
                           <div className="space-y-3 mt-1">

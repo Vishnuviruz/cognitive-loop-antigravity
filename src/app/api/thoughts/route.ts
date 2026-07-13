@@ -6,6 +6,7 @@ import { eq, and, like, desc, or, ne } from 'drizzle-orm';
 import { analyzeThought, getEmbedding, transcribeAudio } from '@/lib/groq';
 import crypto from 'crypto';
 import { processThoughtPKG } from '@/lib/pkg';
+import { createDecisionFromThought } from '@/lib/decisions';
 
 // Cosine similarity utility
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -95,7 +96,8 @@ export async function GET(request: Request) {
           };
         });
 
-      const decisionRecord = userDecisions.find((d) => d.thoughtId === t.id);
+      const associatedDecisions = userDecisions.filter((d) => d.thoughtId === t.id);
+      const decisionRecord = associatedDecisions[0] || null;
       const associatedActions = userActionItems.filter((item) => item.thoughtId === t.id);
 
       return {
@@ -103,7 +105,8 @@ export async function GET(request: Request) {
         tags: JSON.parse(t.tags) as string[],
         suggestedTasks: t.suggestedTasks ? (JSON.parse(t.suggestedTasks) as any[]) : [],
         connections,
-        decision: decisionRecord || null,
+        decision: decisionRecord,
+        decisions: associatedDecisions,
         actionItems: associatedActions,
       };
     });
@@ -246,6 +249,13 @@ export async function POST(request: Request) {
       console.error('[PKG Ingestion Hook] Background extraction error:', err);
     });
 
+    // Trigger Slow Path decision auto-capture if AI is highly confident
+    if (analysis.isDecision && analysis.decisionConfidence >= 0.75) {
+      createDecisionFromThought(newThoughtId, user.id).catch((err) => {
+        console.error('[Decision Hook] Auto-capture error:', err);
+      });
+    }
+
     return NextResponse.json({
       success: true,
       thought: {
@@ -260,6 +270,8 @@ export async function POST(request: Request) {
         actionItems: [],
         connections: newConnections,
         createdAt: Date.now(),
+        isDecision: analysis.isDecision ?? false,
+        decisionConfidence: analysis.decisionConfidence ?? 0,
       },
     });
   } catch (error: any) {

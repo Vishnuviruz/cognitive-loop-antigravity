@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { decisions } from '@/db/schema';
+import { decisions, thoughts } from '@/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
+import { extractLesson } from '@/lib/decisions';
 
 // POST /api/decisions/[id]/review - Record the retrospective outcome of a decision
 export async function POST(
@@ -36,6 +37,11 @@ export async function POST(
       return NextResponse.json({ error: 'not_found', message: 'Decision tracker not found' }, { status: 404 });
     }
 
+    // Fetch the source thought to get the decision title (thought summary)
+    const sourceThought = await db.query.thoughts.findFirst({
+      where: eq(thoughts.id, decisionRecord.thoughtId),
+    });
+
     // Update decision outcome
     await db
       .update(decisions)
@@ -50,6 +56,19 @@ export async function POST(
       where: eq(decisions.id, id),
     });
 
+    // Trigger Slow Path Groq lesson extraction in the background
+    const decisionTitle = sourceThought?.summary ?? 'A committed decision';
+    extractLesson(
+      id,
+      decisionTitle,
+      decisionRecord.successMetric,
+      cleanNotes,
+      status as 'success' | 'failed' | 'neutral',
+      user.id
+    ).catch((err) => {
+      console.error('[Lesson Extraction] Background error:', err);
+    });
+
     return NextResponse.json({ success: true, decision: updatedDecision });
   } catch (error: any) {
     console.error('Error logging decision review:', error);
@@ -59,3 +78,4 @@ export async function POST(
     );
   }
 }
+
