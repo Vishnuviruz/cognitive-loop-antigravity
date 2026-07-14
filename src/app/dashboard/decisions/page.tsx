@@ -20,6 +20,8 @@ import {
   CheckSquare,
   ChevronDown,
   ChevronUp,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { LessonsVault } from './LessonsVault';
 
@@ -79,6 +81,12 @@ export default function DecisionLedgerPage() {
   const [statusFilterOpen, setStatusFilterOpen] = useState(false);
   const [createdFilterOpen, setCreatedFilterOpen] = useState(false);
   const [sortFilterOpen, setSortFilterOpen] = useState(false);
+
+  // Active card expander state
+  const [expandedActiveCardId, setExpandedActiveCardId] = useState<string | null>(null);
+
+  // Layout View Mode (grid vs list)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Manual Decision creation states
   const [showManualForm, setShowManualForm] = useState(false);
@@ -633,7 +641,7 @@ export default function DecisionLedgerPage() {
               {statusFilterOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setStatusFilterOpen(false)} />
-                  <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[140px] bg-zinc-950 border border-zinc-850 rounded-xl shadow-2xl py-1 backdrop-blur-md">
+                  <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[140px] bg-zinc-950 border border-zinc-900 rounded-xl shadow-2xl py-1 backdrop-blur-md">
                     {['all', ...(ledgerTab === 'active' ? ['pending'] : ['success', 'failed', 'trash'])].map((st) => (
                       <button
                         key={st}
@@ -643,7 +651,7 @@ export default function DecisionLedgerPage() {
                         }}
                         className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block capitalize ${
                           st === filterStatus 
-                            ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                            ? 'text-indigo-400 font-semibold' 
                             : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-white'
                         }`}
                       >
@@ -674,7 +682,7 @@ export default function DecisionLedgerPage() {
               {createdFilterOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setCreatedFilterOpen(false)} />
-                  <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[180px] max-h-48 overflow-y-auto bg-zinc-950 border border-zinc-850 rounded-xl shadow-2xl py-1 backdrop-blur-md">
+                  <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[180px] max-h-48 overflow-y-auto bg-zinc-950 border border-zinc-900 rounded-xl shadow-2xl py-1 backdrop-blur-md">
                     <button
                       onClick={() => {
                         setFilterCreatedDate('all');
@@ -682,7 +690,7 @@ export default function DecisionLedgerPage() {
                       }}
                       className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
                         filterCreatedDate === 'all'
-                          ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                          ? 'text-indigo-400 font-semibold' 
                           : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-white'
                       }`}
                     >
@@ -697,7 +705,7 @@ export default function DecisionLedgerPage() {
                         }}
                         className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
                           dateStr === filterCreatedDate
-                            ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                            ? 'text-indigo-400 font-semibold' 
                             : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-white'
                         }`}
                       >
@@ -726,7 +734,7 @@ export default function DecisionLedgerPage() {
             </div>
 
             {/* Sort Order */}
-            <div className="relative ml-auto">
+            <div className="relative ml-auto flex items-center gap-2">
               <button
                 onClick={() => {
                   setSortFilterOpen(!sortFilterOpen);
@@ -742,7 +750,7 @@ export default function DecisionLedgerPage() {
               {sortFilterOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setSortFilterOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[140px] bg-zinc-950 border border-zinc-850 rounded-xl shadow-2xl py-1 backdrop-blur-md">
+                  <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[140px] bg-zinc-950 border border-zinc-900 rounded-xl shadow-2xl py-1 backdrop-blur-md">
                     {[
                       { val: 'newest', label: 'Newest First' },
                       { val: 'oldest', label: 'Oldest First' },
@@ -755,7 +763,7 @@ export default function DecisionLedgerPage() {
                         }}
                         className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
                           opt.val === sortOrder
-                            ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                            ? 'text-indigo-400 font-semibold' 
                             : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-white'
                         }`}
                       >
@@ -765,6 +773,28 @@ export default function DecisionLedgerPage() {
                   </div>
                 </>
               )}
+
+              {/* View Mode Toggle Button */}
+              <div className="flex items-center gap-1 bg-zinc-900/40 border border-zinc-900/60 rounded-xl p-1 h-[34px]">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1 rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'grid' ? 'bg-zinc-800 text-indigo-450 font-bold' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                  title="Grid View"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1 rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'list' ? 'bg-zinc-800 text-indigo-455 font-bold' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                  title="List View"
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -776,10 +806,11 @@ export default function DecisionLedgerPage() {
                   No active trackers match your selected criteria.
                 </div>
               ) : (
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className={`grid gap-4 ${viewMode === 'grid' ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
                   {displayPendingDecisions.map((d) => {
                     const daysLeft = Math.ceil((d.expectedOutcomeDate - Date.now()) / (1000 * 60 * 60 * 24));
                     const isOverdue = Date.now() > d.expectedOutcomeDate;
+                    const isExpandedActive = expandedActiveCardId === d.id;
                     
                     // Parse intermediate AI Insights
                     let evolutionSummary = '';
@@ -793,9 +824,13 @@ export default function DecisionLedgerPage() {
                     }
 
                     return (
-                      <div key={d.id} className={`glass-panel border p-5 rounded-2xl flex flex-col justify-between gap-4 transition-all duration-300 ${
-                        isOverdue ? 'border-amber-500/20 bg-amber-950/5' : 'border-zinc-900/80 hover:border-zinc-800'
-                      }`}>
+                      <div 
+                        key={d.id} 
+                        onClick={() => setExpandedActiveCardId(isExpandedActive ? null : d.id)}
+                        className={`glass-panel border p-5 rounded-2xl flex flex-col justify-between gap-4 transition-all duration-300 cursor-pointer select-none ${
+                          isOverdue ? 'border-amber-500/20 bg-amber-950/5' : 'border-zinc-900/80 hover:border-zinc-800 hover:bg-zinc-900/10'
+                        }`}
+                      >
                         <div className="space-y-3">
                           <div className="flex justify-between items-start gap-3">
                             <span className={`text-[9px] px-2 py-0.5 rounded font-semibold tracking-wide uppercase ${
@@ -805,10 +840,15 @@ export default function DecisionLedgerPage() {
                             }`}>
                               {isOverdue ? '⚠️ Overdue Review' : '⏳ Tracking Active'}
                             </span>
-                            <span className="text-[10px] text-zinc-500 flex items-center gap-1 font-semibold">
-                              <Clock className="w-3 h-3 text-cyan-400" /> 
-                              {isOverdue ? 'Review Required' : `${daysLeft} days left`}
-                            </span>
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-[10px] text-zinc-500 flex items-center gap-1 font-semibold">
+                                <Clock className="w-3 h-3 text-cyan-400" /> 
+                                {isOverdue ? 'Review Required' : `${daysLeft} days left`}
+                              </span>
+                              <div className="text-zinc-650 hover:text-zinc-400 transition-colors">
+                                {isExpandedActive ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </div>
+                            </div>
                           </div>
 
                           <div>
@@ -826,66 +866,73 @@ export default function DecisionLedgerPage() {
                             <p className="text-zinc-300 italic">"{d.successMetric}"</p>
                           </div>
 
-                          {/* Dynamic Progress Timeline Stack */}
-                          {d.logs && d.logs.length > 0 && (
-                            <div className="space-y-2 pt-1">
-                              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
-                                Progress logs timeline ({d.logs.length})
-                              </span>
-                              <div className="relative border-l border-zinc-900 ml-1.5 pl-3.5 space-y-2.5">
-                                {d.logs.map((log) => (
-                                  <div key={log.id} className="relative text-xs">
-                                    <span className="absolute -left-[20px] top-1 w-2.5 h-2.5 rounded-full bg-zinc-900 border border-zinc-800" />
-                                    <div className="text-[10px] text-zinc-500">
-                                      {new Date(log.createdAt).toLocaleDateString()}
-                                    </div>
-                                    <p className="text-zinc-300 font-medium leading-relaxed mt-0.5">{log.note}</p>
+                          {/* Collapsible stack details for Active Cards */}
+                          {isExpandedActive && (
+                            <div onClick={(e) => e.stopPropagation()} className="space-y-4 pt-1 border-t border-zinc-900/60 mt-3 cursor-default select-text">
+                              {/* Dynamic Progress Timeline Stack */}
+                              {d.logs && d.logs.length > 0 && (
+                                <div className="space-y-2 pt-1">
+                                  <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
+                                    Progress logs timeline ({d.logs.length})
+                                  </span>
+                                  <div className="relative border-l border-zinc-900 ml-1.5 pl-3.5 space-y-2.5">
+                                    {d.logs.map((log) => (
+                                      <div key={log.id} className="relative text-xs">
+                                        <span className="absolute -left-[20px] top-1 w-2.5 h-2.5 rounded-full bg-zinc-900 border border-zinc-800" />
+                                        <div className="text-[10px] text-zinc-500">
+                                          {new Date(log.createdAt).toLocaleDateString()}
+                                        </div>
+                                        <p className="text-zinc-300 font-medium leading-relaxed mt-0.5">{log.note}</p>
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                                </div>
+                              )}
 
-                          {/* JARVIS Evolution Summary & Proactive Insights */}
-                          {evolutionSummary && (
-                            <div className="p-4 rounded-xl border border-amber-500/10 bg-amber-500/[0.02] space-y-3 shadow-sm relative overflow-hidden">
-                              <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/[0.02] blur-xl rounded-full" />
-                              <div className="space-y-1 relative">
-                                <span className="text-[9px] font-extrabold text-amber-400 uppercase tracking-wider block">AI Progress Summary</span>
-                                <p className="text-zinc-300 text-xs leading-relaxed">{evolutionSummary}</p>
-                              </div>
-                              <div className="space-y-1 border-t border-amber-500/10 pt-2.5 relative">
-                                <span className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-wider block flex items-center gap-1.5">
-                                  <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" /> JARVIS Insight
-                                </span>
-                                <p className="text-zinc-200 text-xs leading-relaxed font-semibold italic">"{jarvisInsight}"</p>
-                              </div>
+                              {/* JARVIS Evolution Summary & Proactive Insights */}
+                              {evolutionSummary && (
+                                <div className="p-4 rounded-xl border border-amber-500/10 bg-amber-500/[0.02] space-y-3 shadow-sm relative overflow-hidden">
+                                  <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/[0.02] blur-xl rounded-full" />
+                                  <div className="space-y-1 relative">
+                                    <span className="text-[9px] font-extrabold text-amber-400 uppercase tracking-wider block">AI Progress Summary</span>
+                                    <p className="text-zinc-300 text-xs leading-relaxed">{evolutionSummary}</p>
+                                  </div>
+                                  <div className="space-y-1 border-t border-amber-500/10 pt-2.5 relative">
+                                    <span className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-wider block flex items-center gap-1.5">
+                                      <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" /> JARVIS Insight
+                                    </span>
+                                    <p className="text-zinc-200 text-xs leading-relaxed font-semibold italic">"{jarvisInsight}"</p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
 
-                        <div className="border-t border-zinc-900/60 pt-3.5 space-y-4">
-                          {reviewingId !== d.id && expandedProgressId !== d.id && (
-                            <div className="flex gap-2">
-                              {/* Log Progress Button */}
-                              <button
-                                onClick={() => setExpandedProgressId(expandedProgressId === d.id ? null : d.id)}
-                                className="flex-1 text-[10px] py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                              >
-                                <Activity className="w-3.5 h-3.5" />
-                                {expandedProgressId === d.id ? 'Hide Update' : 'Log Progress'}
-                              </button>
+                        {/* Collapsible Action Buttons for Active Cards */}
+                        {isExpandedActive && (
+                          <div onClick={(e) => e.stopPropagation()} className="border-t border-zinc-900/60 pt-3.5 space-y-4 cursor-default select-text">
+                            {reviewingId !== d.id && expandedProgressId !== d.id && (
+                              <div className="flex gap-2">
+                                {/* Log Progress Button */}
+                                <button
+                                  onClick={() => setExpandedProgressId(expandedProgressId === d.id ? null : d.id)}
+                                  className="flex-1 text-[10px] py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                                >
+                                  <Activity className="w-3.5 h-3.5" />
+                                  {expandedProgressId === d.id ? 'Hide Update' : 'Log Progress'}
+                                </button>
 
-                              {/* Review & Close Button */}
-                              <button
-                                onClick={() => handleStartReview(d)}
-                                className="flex-1 text-[10px] py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md"
-                              >
-                                <CheckSquare className="w-3.5 h-3.5" />
-                                Review & Close
-                              </button>
-                            </div>
-                          )}
+                                {/* Review & Close Button */}
+                                <button
+                                  onClick={() => handleStartReview(d)}
+                                  className="flex-1 text-[10px] py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md"
+                                >
+                                  <CheckSquare className="w-3.5 h-3.5" />
+                                  Review & Close
+                                </button>
+                              </div>
+                            )}
 
                           {/* Expandable Progress Log Input Form */}
                           {expandedProgressId === d.id && (
@@ -975,6 +1022,7 @@ export default function DecisionLedgerPage() {
                             </div>
                           )}
                         </div>
+                      )}
                       </div>
                     );
                   })}
@@ -991,7 +1039,7 @@ export default function DecisionLedgerPage() {
                   No historical outcomes configured.
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className={`grid gap-4 ${viewMode === 'grid' ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
                   {displayCompletedDecisions.map((d) => {
                     const isExpanded = expandedHistoryId === d.id;
                     const createdFormatted = new Date(d.createdAt).toLocaleString(undefined, {
