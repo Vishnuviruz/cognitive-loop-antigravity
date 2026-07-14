@@ -71,6 +71,7 @@ export default function DecisionLedgerPage() {
   const [progressNoteText, setProgressNoteText] = useState<{ [decisionId: string]: string }>({});
   const [isSubmittingProgress, setIsSubmittingProgress] = useState<{ [decisionId: string]: boolean }>({});
   const [expandedProgressId, setExpandedProgressId] = useState<string | null>(null);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   // Manual Decision creation states
   const [showManualForm, setShowManualForm] = useState(false);
@@ -614,7 +615,7 @@ export default function DecisionLedgerPage() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-zinc-950 border border-zinc-900 hover:border-zinc-750 rounded-lg p-2 text-white outline-none transition-all duration-200 cursor-pointer"
               >
                 <option value="all">All Outcomes</option>
                 {ledgerTab === 'active' ? (
@@ -635,7 +636,7 @@ export default function DecisionLedgerPage() {
               <select
                 value={filterCreatedDate}
                 onChange={(e) => setFilterCreatedDate(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-zinc-950 border border-zinc-900 hover:border-zinc-750 rounded-lg p-2 text-white outline-none transition-all duration-200 cursor-pointer"
               >
                 <option value="all">All Dates</option>
                 {uniqueCreatedDates.map((dateStr) => (
@@ -658,7 +659,7 @@ export default function DecisionLedgerPage() {
                     (e.target as any).showPicker();
                   } catch (err) {}
                 }}
-                className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                className="w-full bg-zinc-950 border border-zinc-900 hover:border-zinc-750 rounded-lg p-2 text-white outline-none transition-all duration-200 cursor-pointer"
               />
             </div>
 
@@ -668,7 +669,7 @@ export default function DecisionLedgerPage() {
               <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
-                className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-zinc-950 border border-zinc-900 hover:border-zinc-750 rounded-lg p-2 text-white outline-none transition-all duration-200 cursor-pointer"
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
@@ -720,7 +721,7 @@ export default function DecisionLedgerPage() {
                           </div>
 
                           <div>
-                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Decision context</span>
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Decision Note/Brief</span>
                             <h3 className="text-zinc-100 text-xs font-bold leading-relaxed mt-0.5">
                               {d.title}
                             </h3>
@@ -730,7 +731,7 @@ export default function DecisionLedgerPage() {
                           </div>
 
                           <div className="p-3 bg-black/30 rounded-xl border border-zinc-900 text-xs space-y-1">
-                            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Success Metric</span>
+                            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Target Outcome</span>
                             <p className="text-zinc-300 italic">"{d.successMetric}"</p>
                           </div>
 
@@ -773,7 +774,7 @@ export default function DecisionLedgerPage() {
                         </div>
 
                         <div className="border-t border-zinc-900/60 pt-3.5 space-y-4">
-                          {reviewingId !== d.id && (
+                          {reviewingId !== d.id && expandedProgressId !== d.id && (
                             <div className="flex gap-2">
                               {/* Log Progress Button */}
                               <button
@@ -900,79 +901,142 @@ export default function DecisionLedgerPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {displayCompletedDecisions.map((d) => (
-                    <div key={d.id} className="glass-panel border border-zinc-900/60 p-5 rounded-2xl space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                          <h3 className="text-white text-xs font-bold truncate max-w-lg">
-                            {d.title}
-                          </h3>
-                          <span className="text-[10px] text-zinc-500 italic block mt-0.5">
-                            Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}"
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border font-extrabold tracking-wider uppercase ${
-                            d.status === 'success'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                              : d.status === 'failed'
-                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                          }`}>
-                            {d.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5" />}
-                            {d.status === 'failed' && <XCircle className="w-3.5 h-3.5" />}
-                            {d.status === 'trash' && <HelpCircle className="w-3.5 h-3.5" />}
-                            {d.status === 'trash' ? 'trashed' : d.status}
-                          </span>
-                          <span className="text-[10px] text-zinc-500 whitespace-nowrap">
-                            Logged: {d.reviewedAt ? new Date(d.reviewedAt).toLocaleDateString() : ''}
-                          </span>
-                        </div>
-                      </div>
+                  {displayCompletedDecisions.map((d) => {
+                    const isExpanded = expandedHistoryId === d.id;
+                    const createdFormatted = new Date(d.createdAt).toLocaleString(undefined, {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    });
+                    const closedFormatted = d.reviewedAt
+                      ? new Date(d.reviewedAt).toLocaleString(undefined, {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })
+                      : '';
 
-                      {/* Expected Metric & Retrospective Journal */}
-                      <div className="grid md:grid-cols-2 gap-4 text-xs pt-2 border-t border-zinc-950/40">
-                        <div className="space-y-1">
-                          <p className="text-zinc-500 font-bold text-[9px] uppercase tracking-wider">Expected Metric:</p>
-                          <p className="text-zinc-300 italic bg-black/10 p-2.5 rounded-xl border border-zinc-900/60">"{d.successMetric}"</p>
+                    return (
+                      <div key={d.id} className="glass-panel border border-zinc-900/60 p-5 rounded-2xl space-y-4 hover:border-zinc-800 transition-all duration-300">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <h3 className="text-white text-xs font-bold truncate max-w-lg">
+                              {d.title}
+                            </h3>
+                            <span 
+                              className="text-[10px] text-zinc-500 italic block mt-0.5 cursor-help"
+                              title={d.thoughtContent}
+                            >
+                              Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}" (hover to read full thought)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2.5">
+                            <span className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border font-extrabold tracking-wider uppercase ${
+                              d.status === 'success'
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : d.status === 'failed'
+                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                  : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                            }`}>
+                              {d.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                              {d.status === 'failed' && <XCircle className="w-3.5 h-3.5" />}
+                              {d.status === 'trash' && <HelpCircle className="w-3.5 h-3.5" />}
+                              {d.status === 'trash' ? 'trashed' : d.status}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 whitespace-nowrap">
+                              Logged: {d.reviewedAt ? new Date(d.reviewedAt).toLocaleDateString() : ''}
+                            </span>
+                            <button
+                              onClick={() => setExpandedHistoryId(isExpanded ? null : d.id)}
+                              className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 transition-all cursor-pointer border border-indigo-500/10 hover:border-indigo-500/20 bg-indigo-500/[0.02] px-2.5 py-1 rounded-lg"
+                            >
+                              {isExpanded ? 'Hide Details' : 'View Details'}
+                            </button>
+                          </div>
                         </div>
-                        {d.outcomeNotes && (
-                          <div className="space-y-1">
-                            <p className="text-zinc-500 font-bold text-[9px] uppercase tracking-wider">Retrospective Journal:</p>
-                            <p className="text-zinc-300 leading-relaxed bg-black/10 p-2.5 rounded-xl border border-zinc-900/60">{d.outcomeNotes}</p>
+
+                        {/* Collapsible Details Content */}
+                        {isExpanded && (
+                          <div className="mt-4 pt-4 border-t border-zinc-900/60 space-y-4 animate-slideDown">
+                            {/* Layman Labels and Details grid */}
+                            <div className="grid md:grid-cols-2 gap-4 text-xs">
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Decision Note/Brief</span>
+                                <p className="text-zinc-200 font-semibold leading-relaxed bg-black/10 p-2.5 rounded-xl border border-zinc-900/60">{d.title}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Target Outcome</span>
+                                <p className="text-zinc-300 italic bg-black/10 p-2.5 rounded-xl border border-zinc-900/60">"{d.successMetric}"</p>
+                              </div>
+                            </div>
+
+                            <div className="grid md:grid-cols-2 gap-4 text-xs">
+                              {d.outcomeNotes && (
+                                <div className="space-y-1">
+                                  <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Retrospective Review</span>
+                                  <p className="text-zinc-300 leading-relaxed bg-black/10 p-2.5 rounded-xl border border-zinc-900/60">{d.outcomeNotes}</p>
+                                </div>
+                              )}
+                              <div className="space-y-2 bg-black/10 p-2.5 rounded-xl border border-zinc-900/60 text-[11px] leading-relaxed">
+                                <div>
+                                  <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Logged Date & Time:</span>
+                                  <span className="text-zinc-300 ml-1.5 font-medium">{createdFormatted}</span>
+                                </div>
+                                {d.reviewedAt && (
+                                  <div>
+                                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Closed Date & Time:</span>
+                                    <span className="text-zinc-300 ml-1.5 font-medium">{closedFormatted}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Full mapped thought content */}
+                            <div className="space-y-1 text-xs">
+                              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Full Mapped Thought Content</span>
+                              <p className="text-zinc-400 font-medium italic border-l-2 border-zinc-700 pl-3 leading-relaxed bg-zinc-900/10 p-2 rounded">
+                                "{d.thoughtContent}"
+                              </p>
+                            </div>
+
+                            {/* Display Progress logs stack */}
+                            {d.logs && d.logs.length > 0 && (
+                              <div className="space-y-2 pt-2 border-t border-zinc-950/40">
+                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
+                                  Evolution progress stack
+                                </span>
+                                <div className="relative border-l border-zinc-900 ml-1.5 pl-3.5 space-y-2">
+                                  {d.logs.map((log) => (
+                                    <div key={log.id} className="relative text-xs">
+                                      <span className="absolute -left-[20px] top-1 w-2 h-2 rounded-full bg-zinc-900 border border-zinc-800" />
+                                      <span className="text-[9px] text-zinc-500">{new Date(log.createdAt).toLocaleDateString()}</span>
+                                      <p className="text-zinc-300 leading-relaxed mt-0.5">{log.note}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Final AI Synthesis Summary */}
+                            {d.finalSynthesis && (
+                              <div className="p-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] space-y-1">
+                                <span className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-wider block flex items-center gap-1">
+                                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> AI Resolution Synthesis
+                                </span>
+                                <p className="text-zinc-200 text-xs leading-relaxed italic">"{d.finalSynthesis}"</p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-
-                      {/* Display Progress Stack History */}
-                      {d.logs && d.logs.length > 0 && (
-                        <div className="space-y-2 pt-2 border-t border-zinc-950/40">
-                          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
-                            Evolution progress stack
-                          </span>
-                          <div className="relative border-l border-zinc-900 ml-1.5 pl-3.5 space-y-2">
-                            {d.logs.map((log) => (
-                              <div key={log.id} className="relative text-xs">
-                                <span className="absolute -left-[20px] top-1 w-2 h-2 rounded-full bg-zinc-900 border border-zinc-800" />
-                                <span className="text-[9px] text-zinc-500">{new Date(log.createdAt).toLocaleDateString()}</span>
-                                <p className="text-zinc-300 leading-relaxed mt-0.5">{log.note}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Final AI Synthesis Summary */}
-                      {d.finalSynthesis && (
-                        <div className="p-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] space-y-1">
-                          <span className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-wider block flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> AI Resolution Synthesis
-                          </span>
-                          <p className="text-zinc-200 text-xs leading-relaxed italic">"{d.finalSynthesis}"</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

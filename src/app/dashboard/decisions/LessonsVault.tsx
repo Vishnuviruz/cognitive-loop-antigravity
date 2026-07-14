@@ -217,13 +217,13 @@ export function LessonsVault() {
               <div className="mt-4 p-4 rounded-xl border border-zinc-900 bg-black/20 text-xs space-y-4 animate-slideDown">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Decision context</span>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Decision Note/Brief</span>
                     <p className="text-zinc-200 font-semibold leading-relaxed">
                       {l.decisionTitle || l.thoughtSummary}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Target success metric</span>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Target Outcome</span>
                     <p className="text-zinc-300 italic">"{l.successMetric}"</p>
                   </div>
                 </div>
@@ -249,7 +249,7 @@ export function LessonsVault() {
                 {/* Closing Retrospective Journal */}
                 {l.outcomeNotes && (
                   <div className="space-y-1 pt-2 border-t border-zinc-900/80">
-                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Retrospective Journal notes</span>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Retrospective Review</span>
                     <p className="text-zinc-300 leading-relaxed font-sans">{l.outcomeNotes}</p>
                   </div>
                 )}
