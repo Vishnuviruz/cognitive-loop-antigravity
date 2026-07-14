@@ -11,6 +11,8 @@ import {
   Cpu,
   Sparkles,
   HelpCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 interface ProgressLog {
@@ -139,7 +141,10 @@ export function LessonsVault() {
         {lessonsList.map((l) => (
           <div
             key={l.id}
-            className="glass-panel rounded-2xl border border-zinc-900/60 p-5 relative overflow-hidden group hover:border-zinc-700/60 transition-all"
+            onClick={() => l.decisionId && setExpandedLessonId(expandedLessonId === l.id ? null : l.id)}
+            className={`glass-panel rounded-2xl border border-zinc-900/60 p-5 relative overflow-hidden group hover:border-zinc-700/60 transition-all select-none ${
+              l.decisionId ? 'cursor-pointer' : ''
+            }`}
           >
             {/* Background glow */}
             <div
@@ -166,14 +171,21 @@ export function LessonsVault() {
                 {l.isSuccessful === 1 ? 'From a Win' : 'From a Loss'}
               </div>
 
-              {/* Timestamp */}
-              <span className="text-[10px] text-zinc-600 shrink-0">
-                {new Date(l.createdAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </span>
+              {/* Timestamp and Chevron */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] text-zinc-600">
+                  {new Date(l.createdAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
+                {l.decisionId && (
+                  <div className="text-zinc-600 group-hover:text-zinc-400 transition-colors">
+                    {expandedLessonId === l.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Lesson text */}
@@ -201,20 +213,14 @@ export function LessonsVault() {
                   </div>
                 )}
               </div>
-
-              {l.decisionId && (
-                <button
-                  onClick={() => setExpandedLessonId(expandedLessonId === l.id ? null : l.id)}
-                  className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 transition-all cursor-pointer border border-indigo-500/10 hover:border-indigo-500/20 bg-indigo-500/[0.02] px-2.5 py-1 rounded-lg"
-                >
-                  {expandedLessonId === l.id ? 'Hide Case Study' : 'Case Study Details'}
-                </button>
-              )}
             </div>
 
             {/* Expandable Case Study Timeline and Synthesis */}
             {expandedLessonId === l.id && (
-              <div className="mt-4 p-4 rounded-xl border border-zinc-900 bg-black/20 text-xs space-y-4 animate-slideDown">
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                className="mt-4 p-4 rounded-xl border border-zinc-900 bg-black/20 text-xs space-y-4 animate-slideDown cursor-default select-text"
+              >
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Decision Note/Brief</span>

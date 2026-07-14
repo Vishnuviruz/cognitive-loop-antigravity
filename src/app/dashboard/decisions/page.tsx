@@ -18,6 +18,8 @@ import {
   Sparkles,
   Activity,
   CheckSquare,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { LessonsVault } from './LessonsVault';
 
@@ -607,40 +609,40 @@ export default function DecisionLedgerPage() {
             </div>
           </div>
 
-          {/* Filter Bar Panel */}
-          <div className="glass-panel border border-zinc-900/60 p-4 rounded-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          {/* Controls Row */}
+          <div className="w-full bg-zinc-950/20 border border-zinc-900 rounded-2xl p-3 flex flex-wrap items-center gap-3 text-xs">
             {/* Status Filter */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Filter by Status</span>
+            <div className="flex items-center gap-2 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-805 rounded-xl px-3 py-1.5 transition-all">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Filter Status:</span>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-900 hover:border-zinc-750 rounded-lg p-2 text-white outline-none transition-all duration-200 cursor-pointer"
+                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer pr-1"
               >
-                <option value="all">All Outcomes</option>
+                <option value="all" className="bg-zinc-950">All Outcomes</option>
                 {ledgerTab === 'active' ? (
-                  <option value="pending">Pending</option>
+                  <option value="pending" className="bg-zinc-950">Pending</option>
                 ) : (
                   <>
-                    <option value="success">Success</option>
-                    <option value="failed">Failed</option>
-                    <option value="trash">Trashed</option>
+                    <option value="success" className="bg-zinc-950">Success</option>
+                    <option value="failed" className="bg-zinc-950">Failed</option>
+                    <option value="trash" className="bg-zinc-950">Trashed</option>
                   </>
                 )}
               </select>
             </div>
 
             {/* Created Date Exact Filter */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Created Date</span>
+            <div className="flex items-center gap-2 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-805 rounded-xl px-3 py-1.5 transition-all">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Created:</span>
               <select
                 value={filterCreatedDate}
                 onChange={(e) => setFilterCreatedDate(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-900 hover:border-zinc-750 rounded-lg p-2 text-white outline-none transition-all duration-200 cursor-pointer"
+                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer pr-1"
               >
-                <option value="all">All Dates</option>
+                <option value="all" className="bg-zinc-950">All Dates</option>
                 {uniqueCreatedDates.map((dateStr) => (
-                  <option key={dateStr} value={dateStr}>
+                  <option key={dateStr} value={dateStr} className="bg-zinc-950">
                     {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                   </option>
                 ))}
@@ -648,8 +650,8 @@ export default function DecisionLedgerPage() {
             </div>
 
             {/* Target Outcome Deadline Filter */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Due On/Before</span>
+            <div className="flex items-center gap-2 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-805 rounded-xl px-3 py-1.5 transition-all">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Due By:</span>
               <input
                 type="date"
                 value={filterTargetDate}
@@ -659,20 +661,20 @@ export default function DecisionLedgerPage() {
                     (e.target as any).showPicker();
                   } catch (err) {}
                 }}
-                className="w-full bg-zinc-950 border border-zinc-900 hover:border-zinc-750 rounded-lg p-2 text-white outline-none transition-all duration-200 cursor-pointer"
+                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer"
               />
             </div>
 
             {/* Sort Order */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Sort by Creation</span>
+            <div className="flex items-center gap-2 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-805 rounded-xl px-3 py-1.5 transition-all ml-auto">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Sort:</span>
               <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
-                className="w-full bg-zinc-950 border border-zinc-900 hover:border-zinc-750 rounded-lg p-2 text-white outline-none transition-all duration-200 cursor-pointer"
+                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer pr-1"
               >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
+                <option value="newest" className="bg-zinc-950">Newest First</option>
+                <option value="oldest" className="bg-zinc-950">Oldest First</option>
               </select>
             </div>
           </div>
@@ -923,7 +925,11 @@ export default function DecisionLedgerPage() {
                       : '';
 
                     return (
-                      <div key={d.id} className="glass-panel border border-zinc-900/60 p-5 rounded-2xl space-y-4 hover:border-zinc-800 transition-all duration-300">
+                      <div 
+                        key={d.id} 
+                        onClick={() => setExpandedHistoryId(isExpanded ? null : d.id)}
+                        className="glass-panel border border-zinc-900/60 p-5 rounded-2xl space-y-4 hover:border-zinc-800 hover:bg-zinc-900/10 transition-all duration-300 cursor-pointer select-none"
+                      >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div>
                             <h3 className="text-white text-xs font-bold truncate max-w-lg">
@@ -952,18 +958,18 @@ export default function DecisionLedgerPage() {
                             <span className="text-[10px] text-zinc-500 whitespace-nowrap">
                               Logged: {d.reviewedAt ? new Date(d.reviewedAt).toLocaleDateString() : ''}
                             </span>
-                            <button
-                              onClick={() => setExpandedHistoryId(isExpanded ? null : d.id)}
-                              className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 transition-all cursor-pointer border border-indigo-500/10 hover:border-indigo-500/20 bg-indigo-500/[0.02] px-2.5 py-1 rounded-lg"
-                            >
-                              {isExpanded ? 'Hide Details' : 'View Details'}
-                            </button>
+                            <div className="text-zinc-500 p-1 hover:text-white transition-colors">
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </div>
                           </div>
                         </div>
 
                         {/* Collapsible Details Content */}
                         {isExpanded && (
-                          <div className="mt-4 pt-4 border-t border-zinc-900/60 space-y-4 animate-slideDown">
+                          <div 
+                            onClick={(e) => e.stopPropagation()} 
+                            className="mt-4 pt-4 border-t border-zinc-900/60 space-y-4 animate-slideDown cursor-default select-text"
+                          >
                             {/* Layman Labels and Details grid */}
                             <div className="grid md:grid-cols-2 gap-4 text-xs">
                               <div className="space-y-1">
