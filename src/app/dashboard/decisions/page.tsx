@@ -734,7 +734,7 @@ export default function DecisionLedgerPage() {
             </div>
 
             {/* Sort Order */}
-            <div className="relative ml-auto flex items-center gap-2">
+            <div className="relative ml-auto">
               <button
                 onClick={() => {
                   setSortFilterOpen(!sortFilterOpen);
@@ -773,28 +773,28 @@ export default function DecisionLedgerPage() {
                   </div>
                 </>
               )}
+            </div>
 
-              {/* View Mode Toggle Button */}
-              <div className="flex items-center gap-1 bg-zinc-900/40 border border-zinc-900/60 rounded-xl p-1 h-[34px]">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-1 rounded-lg transition-all cursor-pointer ${
-                    viewMode === 'grid' ? 'bg-zinc-800 text-indigo-450 font-bold' : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                  title="Grid View"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-1 rounded-lg transition-all cursor-pointer ${
-                    viewMode === 'list' ? 'bg-zinc-800 text-indigo-455 font-bold' : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                  title="List View"
-                >
-                  <List className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            {/* View Mode Toggle Button */}
+            <div className="flex items-center gap-1 bg-zinc-900/40 border border-zinc-900/60 rounded-xl p-1 h-[34px]">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'grid' ? 'bg-zinc-800 text-indigo-450 font-bold' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="Grid View"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-1 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'list' ? 'bg-zinc-800 text-indigo-455 font-bold' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="List View"
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
@@ -840,7 +840,38 @@ export default function DecisionLedgerPage() {
                             }`}>
                               {isOverdue ? '⚠️ Overdue Review' : '⏳ Tracking Active'}
                             </span>
-                            <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-3">
+                              {/* Compact Inline Buttons */}
+                              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                {/* Log Progress button */}
+                                {reviewingId !== d.id && expandedProgressId !== d.id && (
+                                  <button
+                                    onClick={() => {
+                                      setExpandedProgressId(d.id);
+                                      setExpandedActiveCardId(d.id); // Expand card to show form
+                                    }}
+                                    className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-850 text-zinc-300 font-bold transition-all cursor-pointer"
+                                  >
+                                    <Activity className="w-2.5 h-2.5 text-cyan-400 animate-pulse" />
+                                    <span>Log Update</span>
+                                  </button>
+                                )}
+
+                                {/* Review & Close button */}
+                                {reviewingId !== d.id && (
+                                  <button
+                                    onClick={() => {
+                                      handleStartReview(d);
+                                      setExpandedActiveCardId(d.id); // Expand card to show form
+                                    }}
+                                    className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer shadow-sm"
+                                  >
+                                    <CheckSquare className="w-2.5 h-2.5 text-indigo-200" />
+                                    <span>Close</span>
+                                  </button>
+                                )}
+                              </div>
+
                               <span className="text-[10px] text-zinc-500 flex items-center gap-1 font-semibold">
                                 <Clock className="w-3 h-3 text-cyan-400" /> 
                                 {isOverdue ? 'Review Required' : `${daysLeft} days left`}
@@ -909,30 +940,9 @@ export default function DecisionLedgerPage() {
                           )}
                         </div>
 
-                        {/* Collapsible Action Buttons for Active Cards */}
-                        {isExpandedActive && (
+                        {/* Collapsible Forms for Active Cards */}
+                        {isExpandedActive && (expandedProgressId === d.id || reviewingId === d.id) && (
                           <div onClick={(e) => e.stopPropagation()} className="border-t border-zinc-900/60 pt-3.5 space-y-4 cursor-default select-text">
-                            {reviewingId !== d.id && expandedProgressId !== d.id && (
-                              <div className="flex gap-2">
-                                {/* Log Progress Button */}
-                                <button
-                                  onClick={() => setExpandedProgressId(expandedProgressId === d.id ? null : d.id)}
-                                  className="flex-1 text-[10px] py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                                >
-                                  <Activity className="w-3.5 h-3.5" />
-                                  {expandedProgressId === d.id ? 'Hide Update' : 'Log Progress'}
-                                </button>
-
-                                {/* Review & Close Button */}
-                                <button
-                                  onClick={() => handleStartReview(d)}
-                                  className="flex-1 text-[10px] py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md"
-                                >
-                                  <CheckSquare className="w-3.5 h-3.5" />
-                                  Review & Close
-                                </button>
-                              </div>
-                            )}
 
                           {/* Expandable Progress Log Input Form */}
                           {expandedProgressId === d.id && (
