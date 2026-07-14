@@ -850,9 +850,9 @@ export default function DecisionLedgerPage() {
                                       setExpandedProgressId(d.id);
                                       setExpandedActiveCardId(d.id); // Expand card to show form
                                     }}
-                                    className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-850 text-zinc-300 font-bold transition-all cursor-pointer"
+                                    className="flex items-center gap-1.5 text-[10px] px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-850 text-zinc-300 font-bold transition-all cursor-pointer"
                                   >
-                                    <Activity className="w-2.5 h-2.5 text-cyan-400 animate-pulse" />
+                                    <Activity className="w-3 h-3 text-cyan-400 animate-pulse" />
                                     <span>Log Update</span>
                                   </button>
                                 )}
@@ -864,9 +864,9 @@ export default function DecisionLedgerPage() {
                                       handleStartReview(d);
                                       setExpandedActiveCardId(d.id); // Expand card to show form
                                     }}
-                                    className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer shadow-sm"
+                                    className="flex items-center gap-1.5 text-[10px] px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer shadow-sm"
                                   >
-                                    <CheckSquare className="w-2.5 h-2.5 text-indigo-200" />
+                                    <CheckSquare className="w-3 h-3 text-indigo-200" />
                                     <span>Close</span>
                                   </button>
                                 )}
