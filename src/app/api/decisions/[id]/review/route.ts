@@ -19,9 +19,9 @@ export async function POST(
     const { id } = await params;
     const { status, outcomeNotes } = await request.json();
 
-    if (!status || !['success', 'failed', 'neutral'].includes(status)) {
+    if (!status || !['success', 'failed', 'trash'].includes(status)) {
       return NextResponse.json(
-        { error: 'bad_request', message: 'Invalid status. Must be "success", "failed", or "neutral"' },
+        { error: 'bad_request', message: 'Invalid status. Must be "success", "failed", or "trash"' },
         { status: 400 }
       );
     }
@@ -63,7 +63,7 @@ export async function POST(
       decisionTitle,
       decisionRecord.successMetric,
       cleanNotes,
-      status as 'success' | 'failed' | 'neutral',
+      status as 'success' | 'failed' | 'trash',
       user.id
     ).catch((err) => {
       console.error('[Lesson Extraction] Background error:', err);

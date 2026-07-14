@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { lessons, decisions, thoughts, entities } from '@/db/schema';
+import { lessons, decisions, thoughts, entities, decisionProgressLogs } from '@/db/schema';
 import { getSessionUser } from '@/lib/auth';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 
 // GET /api/lessons - Fetch all extracted lessons for the logged-in user
 export async function GET() {
@@ -13,7 +13,7 @@ export async function GET() {
     }
 
     // Fetch lessons with their associated decision and entity context
-    const userLessons = await db
+    const rawLessons = await db
       .select({
         id: lessons.id,
         lesson: lessons.lesson,
@@ -21,12 +21,12 @@ export async function GET() {
         createdAt: lessons.createdAt,
         decisionId: lessons.decisionId,
         entityId: lessons.entityId,
-        // Decision context: the success metric used
+        decisionTitle: decisions.title,
+        outcomeNotes: decisions.outcomeNotes,
+        finalSynthesis: decisions.finalSynthesis,
         successMetric: decisions.successMetric,
         decisionStatus: decisions.status,
-        // Thought context: the original thought summary (decision title)
         thoughtSummary: thoughts.summary,
-        // Entity context: which PKG concept this lesson is linked to
         entityName: entities.name,
         entityType: entities.type,
       })
@@ -36,6 +36,23 @@ export async function GET() {
       .leftJoin(entities, eq(lessons.entityId, entities.id))
       .where(eq(lessons.userId, user.id))
       .orderBy(desc(lessons.createdAt));
+
+    // Fetch related progress logs for all decisions linked to lessons
+    const userLessons = await Promise.all(
+      rawLessons.map(async (l) => {
+        let logs: any[] = [];
+        if (l.decisionId) {
+          logs = await db.query.decisionProgressLogs.findMany({
+            where: eq(decisionProgressLogs.decisionId, l.decisionId),
+            orderBy: asc(decisionProgressLogs.createdAt),
+          });
+        }
+        return {
+          ...l,
+          logs,
+        };
+      })
+    );
 
     return NextResponse.json({ lessons: userLessons });
   } catch (error: any) {

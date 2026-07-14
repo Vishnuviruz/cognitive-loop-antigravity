@@ -74,15 +74,26 @@ export const decisions = sqliteTable('decisions', {
   title: text('title').notNull().default('Decision Commitment'),
   expectedOutcomeDate: integer('expected_outcome_date').notNull(),
   successMetric: text('success_metric').notNull(),
-  status: text('status').notNull(), // 'pending', 'success', 'failed', 'neutral'
+  status: text('status').notNull(), // 'pending', 'success', 'failed', 'trash'
   outcomeNotes: text('outcome_notes'),
   reviewedAt: integer('reviewed_at'),
+  evolutionInsight: text('evolution_insight'), // JSON containing AI progress summary + JARVIS Insight
+  finalSynthesis: text('final_synthesis'),     // Final outcome synthesis report
+  createdAt: integer('created_at').notNull(),
+});
+
+// Chronological progress logs tracking decision evolution
+export const decisionProgressLogs = sqliteTable('decision_progress_logs', {
+  id: text('id').primaryKey(),
+  decisionId: text('decision_id').notNull().references(() => decisions.id, { onDelete: 'cascade' }),
+  note: text('note').notNull(),
   createdAt: integer('created_at').notNull(),
 });
 
 // Indexes for performance
 export const decisionsOutcomeIdx = index('decisions_expected_outcome_idx').on(decisions.expectedOutcomeDate);
 export const decisionsStatusIdx = index('decisions_status_idx').on(decisions.status);
+export const progressLogsDecisionIdx = index('progress_logs_decision_idx').on(decisionProgressLogs.decisionId);
 
 // Persistent chat memory for the Thinking Companion
 export const chatMessages = sqliteTable('chat_messages', {

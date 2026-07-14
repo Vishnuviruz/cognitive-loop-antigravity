@@ -10,9 +10,9 @@
  */
 
 import { db } from '@/db';
-import { decisions, thoughts, entities, lessons } from '@/db/schema';
+import { decisions, thoughts, entities, lessons, decisionProgressLogs } from '@/db/schema';
 import { ai } from '@/lib/groq';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import crypto from 'crypto';
 
 // ─── Utility ────────────────────────────────────────────────────────────────
@@ -118,47 +118,55 @@ Respond ONLY with this JSON structure:
   console.log(`[Decision Capture] Auto-created decision tracker ${decisionId} from thought ${thoughtId}`);
 }
 
-// ─── Lesson Extraction ────────────────────────────────────────────────────────
+// ─── Lesson Extraction & Final Synthesis ────────────────────────────────────────
 
 interface LessonExtract {
   isSuccessful: boolean;
   lesson: string;
+  synthesis: string;
   associatedEntityId: string | null;
 }
 
 /**
  * extractLesson
  *
- * Called in the background by POST /api/decisions/[id]/review after the user
- * logs a retrospective outcome.
- *
- * Follows AI Pipeline Spec §4 (Decision Resolution & Lesson Extraction):
- * Calls Groq with the decision title, successMetric, and outcome notes,
- * then inserts a lessons row.
+ * Called by POST /api/decisions/[id]/review after the user logs a retrospective outcome.
+ * Uses Groq to read the decision details, progress logs timeline, and retrospective notes,
+ * generating a final outcome synthesis and extracting distilled lessons.
  */
 export async function extractLesson(
   decisionId: string,
-  thoughtSummary: string,
+  decisionTitle: string,
   successMetric: string,
   outcomeNotes: string,
-  reviewStatus: 'success' | 'failed' | 'neutral',
+  reviewStatus: 'success' | 'failed' | 'trash',
   userId: string
 ): Promise<void> {
   let extract: LessonExtract;
 
+  // 1. Fetch chronological progress updates logged during the decision lifecycle
+  const allLogs = await db.query.decisionProgressLogs.findMany({
+    where: eq(decisionProgressLogs.decisionId, decisionId),
+    orderBy: asc(decisionProgressLogs.createdAt),
+  });
+
+  const progressLogsText = allLogs.length > 0
+    ? allLogs.map((log, idx) => `[Update ${idx + 1} - ${new Date(log.createdAt).toLocaleDateString()}]: "${log.note}"`).join('\n')
+    : 'No intermediate progress notes were logged.';
+
   if (!ai) {
-    // Offline Demo Mode: generate a basic lesson
+    // Offline Demo Mode fallback
     extract = {
       isSuccessful: reviewStatus === 'success',
-      lesson:
-        reviewStatus === 'success'
-          ? 'You demonstrated that committing to clear goals with defined metrics leads to better outcomes.'
-          : 'You learned that revisiting your assumptions earlier could have changed the outcome of this decision.',
+      lesson: reviewStatus === 'success'
+        ? 'You demonstrated that committing to clear goals with defined metrics leads to better outcomes.'
+        : 'You learned that revisiting your assumptions earlier could have changed the outcome of this decision.',
+      synthesis: `The decision was completed with a status of "${reviewStatus}". Outcomes logged: "${outcomeNotes}".`,
       associatedEntityId: null,
     };
   } else {
     try {
-      // Fetch user entities for associatedEntityId resolution
+      // Fetch user entities for resolving entity connections
       const userEntities = await db.query.entities.findMany({
         where: eq(entities.userId, userId),
         columns: { id: true, name: true, type: true },
@@ -174,26 +182,35 @@ export async function extractLesson(
         messages: [
           {
             role: 'system',
-            content: `You are evaluating the outcome of a decision logged by the user.
+            content: `You are evaluating the final outcome of a decision logged by the user.
+Compare the decision's original success metric and progress updates against the final retrospective outcome notes.
 
-Compare the decision's original success metric against the logged outcome notes. Determine if the decision was successful, and extract the core lesson learned as a reusable rule of thumb.
+Your task is to analyze:
+1. Whether the decision was successful, failed, or was trashed/abandoned.
+2. Generate a "synthesis": A paragraph explaining what the decision was, how it evolved and progressed chronologically, how it was closed, and whether it achieved the planned outcome.
+3. If not trashed, extract a "lesson": a reusable rule of thumb written in the second person (e.g. 'You should always validate your assumptions before committing to...'). If trashed, leave the lesson key empty.
+4. Resolve the most relevant linked entity.
 
-Decision:
-- Title: "${thoughtSummary}"
-- Success Metric: "${successMetric}"
-
-Outcome Notes:
-"${outcomeNotes}"
-
-User's Knowledge Graph Entities (id | name | type):
-${entitySummary || 'None yet'}
-
-Response Schema:
+Respond ONLY in this JSON format:
 {
   "isSuccessful": boolean,
-  "lesson": "a reusable lesson or rule of thumb for future decisions, written in the second person (e.g. 'You should always validate your assumptions before committing to...')",
-  "associatedEntityId": "uuid of the entity most impacted by this decision, or null if none match"
+  "synthesis": "Comprehensive narrative explaining the decision lifecycle, how it progressed, and its final resolution details",
+  "lesson": "Distilled wisdom or rule of thumb (or empty string if decision was trashed)",
+  "associatedEntityId": "uuid of the matching entity, or null if none"
 }`,
+          },
+          {
+            role: 'user',
+            content: `Decision Title: "${decisionTitle}"
+Expected Success Metric: "${successMetric}"
+Status Outcome: "${reviewStatus}"
+Closing Retrospective Notes: "${outcomeNotes}"
+
+Intermediate Progress updates timeline:
+${progressLogsText}
+
+User's Knowledge Graph Entities (id | name | type):
+${entitySummary || 'None yet'}`,
           },
         ],
       });
@@ -205,32 +222,42 @@ Response Schema:
       console.error('[extractLesson] Groq extraction failed:', err.message || err);
       extract = {
         isSuccessful: reviewStatus === 'success',
-        lesson: `You reflected on this ${reviewStatus === 'success' ? 'successful' : 'challenging'} decision and documented the outcome.`,
+        lesson: reviewStatus === 'trash' ? '' : `You reflected on this resolved decision and documented the outcome.`,
+        synthesis: `Decision was closed with outcome "${reviewStatus}". Notes: "${outcomeNotes}".`,
         associatedEntityId: null,
       };
     }
   }
 
-  // Validate associatedEntityId if provided
-  let validEntityId: string | null = extract.associatedEntityId ?? null;
-  if (validEntityId) {
-    const entityExists = await db.query.entities.findFirst({
-      where: and(eq(entities.id, validEntityId), eq(entities.userId, userId)),
+  // 2. Save the final synthesis summary to the decision record
+  await db
+    .update(decisions)
+    .set({ finalSynthesis: extract.synthesis })
+    .where(eq(decisions.id, decisionId));
+
+  // 3. Insert into the lessons table ONLY if the decision was successfully resolved (not trashed)
+  if (reviewStatus !== 'trash' && extract.lesson && extract.lesson.trim() !== '') {
+    let validEntityId: string | null = extract.associatedEntityId ?? null;
+    if (validEntityId) {
+      const entityExists = await db.query.entities.findFirst({
+        where: and(eq(entities.id, validEntityId), eq(entities.userId, userId)),
+      });
+      if (!entityExists) validEntityId = null;
+    }
+
+    const lessonId = crypto.randomUUID();
+    await db.insert(lessons).values({
+      id: lessonId,
+      userId,
+      decisionId,
+      entityId: validEntityId,
+      lesson: extract.lesson.trim(),
+      isSuccessful: extract.isSuccessful ? 1 : 0,
+      createdAt: Date.now(),
     });
-    if (!entityExists) validEntityId = null;
+
+    console.log(`[Lesson Extraction] Extracted lesson ${lessonId} from decision ${decisionId}`);
+  } else {
+    console.log(`[Decision Closed] Saved final synthesis for closed decision ${decisionId} (status: ${reviewStatus})`);
   }
-
-  const lessonId = crypto.randomUUID();
-
-  await db.insert(lessons).values({
-    id: lessonId,
-    userId,
-    decisionId,
-    entityId: validEntityId,
-    lesson: extract.lesson,
-    isSuccessful: extract.isSuccessful ? 1 : 0,
-    createdAt: Date.now(),
-  });
-
-  console.log(`[Lesson Extraction] Extracted lesson ${lessonId} from decision ${decisionId}`);
 }
