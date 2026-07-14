@@ -610,48 +610,42 @@ export default function DecisionLedgerPage() {
           </div>
 
           {/* Controls Row */}
-          <div className="w-full bg-zinc-950/20 border border-zinc-900 rounded-2xl p-3 flex flex-wrap items-center gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3 pt-1 pb-3 text-xs w-full">
             {/* Status Filter */}
-            <div className="flex items-center gap-2 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-805 rounded-xl px-3 py-1.5 transition-all">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Filter Status:</span>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer pr-1"
-              >
-                <option value="all" className="bg-zinc-950">All Outcomes</option>
-                {ledgerTab === 'active' ? (
-                  <option value="pending" className="bg-zinc-950">Pending</option>
-                ) : (
-                  <>
-                    <option value="success" className="bg-zinc-950">Success</option>
-                    <option value="failed" className="bg-zinc-950">Failed</option>
-                    <option value="trash" className="bg-zinc-950">Trashed</option>
-                  </>
-                )}
-              </select>
-            </div>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3.5 py-1.5 text-zinc-350 text-xs focus:outline-none cursor-pointer transition-all"
+            >
+              <option value="all" className="bg-zinc-950">Status: All Outcomes</option>
+              {ledgerTab === 'active' ? (
+                <option value="pending" className="bg-zinc-950">Status: Pending</option>
+              ) : (
+                <>
+                  <option value="success" className="bg-zinc-950">Status: Success</option>
+                  <option value="failed" className="bg-zinc-950">Status: Failed</option>
+                  <option value="trash" className="bg-zinc-950">Status: Trashed</option>
+                </>
+              )}
+            </select>
 
             {/* Created Date Exact Filter */}
-            <div className="flex items-center gap-2 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-805 rounded-xl px-3 py-1.5 transition-all">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Created:</span>
-              <select
-                value={filterCreatedDate}
-                onChange={(e) => setFilterCreatedDate(e.target.value)}
-                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer pr-1"
-              >
-                <option value="all" className="bg-zinc-950">All Dates</option>
-                {uniqueCreatedDates.map((dateStr) => (
-                  <option key={dateStr} value={dateStr} className="bg-zinc-950">
-                    {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={filterCreatedDate}
+              onChange={(e) => setFilterCreatedDate(e.target.value)}
+              className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3.5 py-1.5 text-zinc-355 text-xs focus:outline-none cursor-pointer transition-all"
+            >
+              <option value="all" className="bg-zinc-950">Created: All Dates</option>
+              {uniqueCreatedDates.map((dateStr) => (
+                <option key={dateStr} value={dateStr} className="bg-zinc-950">
+                  Created: {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </option>
+              ))}
+            </select>
 
             {/* Target Outcome Deadline Filter */}
-            <div className="flex items-center gap-2 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-805 rounded-xl px-3 py-1.5 transition-all">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Due By:</span>
+            <div className="flex items-center gap-1.5 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3 py-1 text-zinc-355 text-xs transition-all h-[32px]">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Due:</span>
               <input
                 type="date"
                 value={filterTargetDate}
@@ -661,22 +655,19 @@ export default function DecisionLedgerPage() {
                     (e.target as any).showPicker();
                   } catch (err) {}
                 }}
-                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer"
+                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer h-full"
               />
             </div>
 
             {/* Sort Order */}
-            <div className="flex items-center gap-2 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-805 rounded-xl px-3 py-1.5 transition-all ml-auto">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Sort:</span>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
-                className="bg-transparent border-none text-zinc-300 text-xs focus:outline-none cursor-pointer pr-1"
-              >
-                <option value="newest" className="bg-zinc-950">Newest First</option>
-                <option value="oldest" className="bg-zinc-950">Oldest First</option>
-              </select>
-            </div>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
+              className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3.5 py-1.5 text-zinc-355 text-xs focus:outline-none cursor-pointer transition-all ml-auto"
+            >
+              <option value="newest" className="bg-zinc-950">Sort: Newest First</option>
+              <option value="oldest" className="bg-zinc-950">Sort: Oldest First</option>
+            </select>
           </div>
 
           {/* Tab Render: Active Trackers */}
@@ -727,9 +718,15 @@ export default function DecisionLedgerPage() {
                             <h3 className="text-zinc-100 text-xs font-bold leading-relaxed mt-0.5">
                               {d.title}
                             </h3>
-                            <span className="text-[10px] text-zinc-500 italic block mt-1">
-                              Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}"
-                            </span>
+                            <div className="relative group mt-0.5">
+                              <span className="text-[10px] text-zinc-500 italic block cursor-help">
+                                Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}" (hover to read full)
+                              </span>
+                              <div className="absolute left-0 bottom-full mb-2.5 hidden group-hover:block w-80 p-3.5 rounded-xl bg-zinc-950/95 border border-zinc-850 text-[10px] text-zinc-300 leading-relaxed shadow-2xl backdrop-blur-md z-50 pointer-events-none select-text">
+                                <span className="font-bold text-[9px] text-indigo-400 block mb-1 uppercase tracking-wider">Full Mapped Thought:</span>
+                                "{d.thoughtContent}"
+                              </div>
+                            </div>
                           </div>
 
                           <div className="p-3 bg-black/30 rounded-xl border border-zinc-900 text-xs space-y-1">
@@ -935,12 +932,15 @@ export default function DecisionLedgerPage() {
                             <h3 className="text-white text-xs font-bold truncate max-w-lg">
                               {d.title}
                             </h3>
-                            <span 
-                              className="text-[10px] text-zinc-500 italic block mt-0.5 cursor-help"
-                              title={d.thoughtContent}
-                            >
-                              Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}" (hover to read full thought)
-                            </span>
+                            <div className="relative group mt-0.5">
+                              <span className="text-[10px] text-zinc-500 italic block cursor-help">
+                                Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}" (hover to read full)
+                              </span>
+                              <div className="absolute left-0 bottom-full mb-2.5 hidden group-hover:block w-80 p-3.5 rounded-xl bg-zinc-950/95 border border-zinc-850 text-[10px] text-zinc-300 leading-relaxed shadow-2xl backdrop-blur-md z-50 pointer-events-none select-text">
+                                <span className="font-bold text-[9px] text-indigo-400 block mb-1 uppercase tracking-wider">Full Mapped Thought:</span>
+                                "{d.thoughtContent}"
+                              </div>
+                            </div>
                           </div>
                           <div className="flex items-center gap-2.5">
                             <span className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border font-extrabold tracking-wider uppercase ${
