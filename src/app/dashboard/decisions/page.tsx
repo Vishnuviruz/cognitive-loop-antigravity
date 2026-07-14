@@ -75,6 +75,11 @@ export default function DecisionLedgerPage() {
   const [expandedProgressId, setExpandedProgressId] = useState<string | null>(null);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
+  // Filter dropdown visibility states
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
+  const [createdFilterOpen, setCreatedFilterOpen] = useState(false);
+  const [sortFilterOpen, setSortFilterOpen] = useState(false);
+
   // Manual Decision creation states
   const [showManualForm, setShowManualForm] = useState(false);
   const [manualContent, setManualContent] = useState('');
@@ -612,39 +617,100 @@ export default function DecisionLedgerPage() {
           {/* Controls Row */}
           <div className="flex flex-wrap items-center gap-3 pt-1 pb-3 text-xs w-full">
             {/* Status Filter */}
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3.5 py-1.5 text-zinc-350 text-xs focus:outline-none cursor-pointer transition-all"
-            >
-              <option value="all" className="bg-zinc-950">Status: All Outcomes</option>
-              {ledgerTab === 'active' ? (
-                <option value="pending" className="bg-zinc-950">Status: Pending</option>
-              ) : (
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setStatusFilterOpen(!statusFilterOpen);
+                  setCreatedFilterOpen(false);
+                  setSortFilterOpen(false);
+                }}
+                className="h-[34px] px-3.5 bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 text-zinc-300 text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 min-w-[125px] justify-between capitalize"
+              >
+                <span>Status: {filterStatus === 'all' ? 'All Outcomes' : filterStatus === 'trash' ? 'Trashed' : filterStatus}</span>
+                <ChevronDown className="w-3 h-3 text-zinc-400" />
+              </button>
+
+              {statusFilterOpen && (
                 <>
-                  <option value="success" className="bg-zinc-950">Status: Success</option>
-                  <option value="failed" className="bg-zinc-950">Status: Failed</option>
-                  <option value="trash" className="bg-zinc-950">Status: Trashed</option>
+                  <div className="fixed inset-0 z-40" onClick={() => setStatusFilterOpen(false)} />
+                  <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[140px] bg-zinc-950 border border-zinc-850 rounded-xl shadow-2xl py-1 backdrop-blur-md">
+                    {['all', ...(ledgerTab === 'active' ? ['pending'] : ['success', 'failed', 'trash'])].map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => {
+                          setFilterStatus(st);
+                          setStatusFilterOpen(false);
+                        }}
+                        className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block capitalize ${
+                          st === filterStatus 
+                            ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                            : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-white'
+                        }`}
+                      >
+                        {st === 'all' ? 'All Outcomes' : st === 'trash' ? 'Trashed' : st}
+                      </button>
+                    ))}
+                  </div>
                 </>
               )}
-            </select>
+            </div>
 
             {/* Created Date Exact Filter */}
-            <select
-              value={filterCreatedDate}
-              onChange={(e) => setFilterCreatedDate(e.target.value)}
-              className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3.5 py-1.5 text-zinc-355 text-xs focus:outline-none cursor-pointer transition-all"
-            >
-              <option value="all" className="bg-zinc-950">Created: All Dates</option>
-              {uniqueCreatedDates.map((dateStr) => (
-                <option key={dateStr} value={dateStr} className="bg-zinc-950">
-                  Created: {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setCreatedFilterOpen(!createdFilterOpen);
+                  setStatusFilterOpen(false);
+                  setSortFilterOpen(false);
+                }}
+                className="h-[34px] px-3.5 bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 text-zinc-300 text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 min-w-[125px] justify-between"
+              >
+                <span>
+                  Created: {filterCreatedDate === 'all' ? 'All Dates' : new Date(filterCreatedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </span>
+                <ChevronDown className="w-3 h-3 text-zinc-400" />
+              </button>
+
+              {createdFilterOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setCreatedFilterOpen(false)} />
+                  <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[180px] max-h-48 overflow-y-auto bg-zinc-950 border border-zinc-850 rounded-xl shadow-2xl py-1 backdrop-blur-md">
+                    <button
+                      onClick={() => {
+                        setFilterCreatedDate('all');
+                        setCreatedFilterOpen(false);
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
+                        filterCreatedDate === 'all'
+                          ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                          : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-white'
+                      }`}
+                    >
+                      All Dates
+                    </button>
+                    {uniqueCreatedDates.map((dateStr) => (
+                      <button
+                        key={dateStr}
+                        onClick={() => {
+                          setFilterCreatedDate(dateStr);
+                          setCreatedFilterOpen(false);
+                        }}
+                        className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
+                          dateStr === filterCreatedDate
+                            ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                            : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-white'
+                        }`}
+                      >
+                        {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Target Outcome Deadline Filter */}
-            <div className="flex items-center gap-1.5 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3 py-1 text-zinc-355 text-xs transition-all h-[32px]">
+            <div className="flex items-center gap-1.5 bg-zinc-900/40 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3 py-1 text-zinc-350 text-xs transition-all h-[34px]">
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">Due:</span>
               <input
                 type="date"
@@ -660,14 +726,46 @@ export default function DecisionLedgerPage() {
             </div>
 
             {/* Sort Order */}
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
-              className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 rounded-xl px-3.5 py-1.5 text-zinc-355 text-xs focus:outline-none cursor-pointer transition-all ml-auto"
-            >
-              <option value="newest" className="bg-zinc-950">Sort: Newest First</option>
-              <option value="oldest" className="bg-zinc-950">Sort: Oldest First</option>
-            </select>
+            <div className="relative ml-auto">
+              <button
+                onClick={() => {
+                  setSortFilterOpen(!sortFilterOpen);
+                  setStatusFilterOpen(false);
+                  setCreatedFilterOpen(false);
+                }}
+                className="h-[34px] px-3.5 bg-zinc-900/40 hover:bg-zinc-900/60 border border-zinc-900/60 hover:border-zinc-800 text-zinc-300 text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 min-w-[125px] justify-between"
+              >
+                <span>Sort: {sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}</span>
+                <ChevronDown className="w-3 h-3 text-zinc-400" />
+              </button>
+
+              {sortFilterOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setSortFilterOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 z-50 min-w-[140px] bg-zinc-950 border border-zinc-850 rounded-xl shadow-2xl py-1 backdrop-blur-md">
+                    {[
+                      { val: 'newest', label: 'Newest First' },
+                      { val: 'oldest', label: 'Oldest First' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.val}
+                        onClick={() => {
+                          setSortOrder(opt.val as 'newest' | 'oldest');
+                          setSortFilterOpen(false);
+                        }}
+                        className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer block ${
+                          opt.val === sortOrder
+                            ? 'bg-indigo-650/15 border-indigo-500/30 text-indigo-300 font-bold' 
+                            : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-white'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Tab Render: Active Trackers */}
@@ -718,15 +816,9 @@ export default function DecisionLedgerPage() {
                             <h3 className="text-zinc-100 text-xs font-bold leading-relaxed mt-0.5">
                               {d.title}
                             </h3>
-                            <div className="relative group mt-0.5">
-                              <span className="text-[10px] text-zinc-500 italic block cursor-help">
-                                Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}" (hover to read full)
-                              </span>
-                              <div className="absolute left-0 bottom-full mb-2.5 hidden group-hover:block w-80 p-3.5 rounded-xl bg-zinc-950/95 border border-zinc-850 text-[10px] text-zinc-300 leading-relaxed shadow-2xl backdrop-blur-md z-50 pointer-events-none select-text">
-                                <span className="font-bold text-[9px] text-indigo-400 block mb-1 uppercase tracking-wider">Full Mapped Thought:</span>
-                                "{d.thoughtContent}"
-                              </div>
-                            </div>
+                            <span className="text-[10px] text-zinc-555 italic block mt-1">
+                              Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}"
+                            </span>
                           </div>
 
                           <div className="p-3 bg-black/30 rounded-xl border border-zinc-900 text-xs space-y-1">
@@ -932,15 +1024,9 @@ export default function DecisionLedgerPage() {
                             <h3 className="text-white text-xs font-bold truncate max-w-lg">
                               {d.title}
                             </h3>
-                            <div className="relative group mt-0.5">
-                              <span className="text-[10px] text-zinc-500 italic block cursor-help">
-                                Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}" (hover to read full)
-                              </span>
-                              <div className="absolute left-0 bottom-full mb-2.5 hidden group-hover:block w-80 p-3.5 rounded-xl bg-zinc-950/95 border border-zinc-850 text-[10px] text-zinc-300 leading-relaxed shadow-2xl backdrop-blur-md z-50 pointer-events-none select-text">
-                                <span className="font-bold text-[9px] text-indigo-400 block mb-1 uppercase tracking-wider">Full Mapped Thought:</span>
-                                "{d.thoughtContent}"
-                              </div>
-                            </div>
+                            <span className="text-[10px] text-zinc-555 italic block mt-0.5">
+                              Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}"
+                            </span>
                           </div>
                           <div className="flex items-center gap-2.5">
                             <span className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded border font-extrabold tracking-wider uppercase ${
