@@ -15,8 +15,18 @@ import {
   Loader2,
   FileText,
   BookOpen,
+  Sparkles,
+  Activity,
+  CheckSquare,
 } from 'lucide-react';
 import { LessonsVault } from './LessonsVault';
+
+interface ProgressLog {
+  id: string;
+  decisionId: string;
+  note: string;
+  createdAt: number;
+}
 
 interface DecisionRecord {
   id: string;
@@ -24,12 +34,15 @@ interface DecisionRecord {
   title: string;
   expectedOutcomeDate: number;
   successMetric: string;
-  status: 'pending' | 'success' | 'failed' | 'neutral';
+  status: 'pending' | 'success' | 'failed' | 'trash';
   outcomeNotes: string | null;
   reviewedAt: number | null;
+  evolutionInsight: string | null;
+  finalSynthesis: string | null;
   createdAt: number;
   thoughtContent: string;
   thoughtSummary: string;
+  logs: ProgressLog[];
 }
 
 export default function DecisionLedgerPage() {
@@ -39,12 +52,25 @@ export default function DecisionLedgerPage() {
 
   // Retroactive Outcome logging states (inline inside lists)
   const [reviewingId, setReviewingId] = useState<string | null>(null);
-  const [outcomeStatus, setOutcomeStatus] = useState<'success' | 'failed' | 'neutral'>('success');
+  const [outcomeStatus, setOutcomeStatus] = useState<'success' | 'failed' | 'trash'>('success');
   const [outcomeNotes, setOutcomeNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Tab switching: 'ledger' | 'lessons'
   const [activeTab, setActiveTab] = useState<'ledger' | 'lessons'>('ledger');
+  // Ledger sub-tabs: 'active' | 'historical'
+  const [ledgerTab, setLedgerTab] = useState<'active' | 'historical'>('active');
+
+  // Filter & Sorting state variables
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterCreatedDate, setFilterCreatedDate] = useState<string>('all');
+  const [filterTargetDate, setFilterTargetDate] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+
+  // Progress update logging states
+  const [progressNoteText, setProgressNoteText] = useState<{ [decisionId: string]: string }>({});
+  const [isSubmittingProgress, setIsSubmittingProgress] = useState<{ [decisionId: string]: boolean }>({});
+  const [expandedProgressId, setExpandedProgressId] = useState<string | null>(null);
 
   // Manual Decision creation states
   const [showManualForm, setShowManualForm] = useState(false);
@@ -185,21 +211,95 @@ export default function DecisionLedgerPage() {
     }
   };
 
+  const handleSaveProgress = async (recordId: string) => {
+    const note = progressNoteText[recordId] || '';
+    if (!note.trim()) {
+      alert('Please write progress notes.');
+      return;
+    }
+
+    setIsSubmittingProgress((prev) => ({ ...prev, [recordId]: true }));
+    try {
+      const res = await fetch(`/api/decisions/${recordId}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: note.trim() }),
+      });
+
+      if (res.ok) {
+        // Reload decisions list
+        await fetchDecisions();
+        setProgressNoteText((prev) => ({ ...prev, [recordId]: '' }));
+        setExpandedProgressId(null);
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to log progress.');
+      }
+    } catch (err) {
+      console.error('Error logging decision progress:', err);
+    } finally {
+      setIsSubmittingProgress((prev) => ({ ...prev, [recordId]: false }));
+    }
+  };
+
   // Stats computation
   const totalDecisions = decisions.length;
   const pendingDecisions = decisions.filter((d) => d.status === 'pending');
   const activeDecisions = pendingDecisions.filter((d) => Date.now() <= d.expectedOutcomeDate);
-  
   const overdueDecisions = pendingDecisions.filter((d) => Date.now() > d.expectedOutcomeDate);
   const completedDecisions = decisions.filter((d) => d.status !== 'pending');
   
   const successCount = completedDecisions.filter((d) => d.status === 'success').length;
   const failedCount = completedDecisions.filter((d) => d.status === 'failed').length;
-  const neutralCount = completedDecisions.filter((d) => d.status === 'neutral').length;
+  const trashCount = completedDecisions.filter((d) => d.status === 'trash').length;
 
-  // Success rate is success / (success + failed)
   const resolvedCount = successCount + failedCount;
   const successRate = resolvedCount > 0 ? Math.round((successCount / resolvedCount) * 100) : 0;
+
+  // Extract unique created dates for exact-day filtering
+  const uniqueCreatedDates = Array.from(
+    new Set(
+      decisions.map((d) => new Date(d.createdAt).toISOString().split('T')[0])
+    )
+  ).sort((a, b) => b.localeCompare(a));
+
+  // Helper to filter and sort arrays
+  const getFilteredAndSortedDecisions = (list: DecisionRecord[]) => {
+    let result = [...list];
+
+    // Filter by Status (mostly relevant for completed historical ledger)
+    if (filterStatus !== 'all') {
+      result = result.filter((d) => d.status === filterStatus);
+    }
+
+    // Filter by Created Date (Exact Day)
+    if (filterCreatedDate !== 'all') {
+      result = result.filter((d) => {
+        const dDate = new Date(d.createdAt).toISOString().split('T')[0];
+        return dDate === filterCreatedDate;
+      });
+    }
+
+    // Filter by Target date (deadlines on or before chosen input date)
+    if (filterTargetDate) {
+      const filterTargetTimestamp = new Date(filterTargetDate).getTime();
+      result = result.filter((d) => d.expectedOutcomeDate <= filterTargetTimestamp);
+    }
+
+    // Apply Sorting order
+    result.sort((a, b) => {
+      if (sortOrder === 'newest') {
+        return b.createdAt - a.createdAt;
+      } else {
+        return a.createdAt - b.createdAt;
+      }
+    });
+
+    return result;
+  };
+
+  const displayPendingDecisions = getFilteredAndSortedDecisions(pendingDecisions);
+  const displayCompletedDecisions = getFilteredAndSortedDecisions(completedDecisions);
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-12">
@@ -207,7 +307,7 @@ export default function DecisionLedgerPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-900 pb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-fuchsia-600/10 text-fuchsia-400 border border-fuchsia-500/10">
+            <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/10">
               <GitMerge className="w-5.5 h-5.5" />
             </div>
             Decision Ledger
@@ -225,7 +325,7 @@ export default function DecisionLedgerPage() {
               onClick={() => setActiveTab('ledger')}
               className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'ledger'
-                  ? 'bg-fuchsia-600/20 text-fuchsia-300 border border-fuchsia-500/30'
+                  ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -236,7 +336,7 @@ export default function DecisionLedgerPage() {
               onClick={() => setActiveTab('lessons')}
               className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'lessons'
-                  ? 'bg-fuchsia-600/20 text-fuchsia-300 border border-fuchsia-500/30'
+                  ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -248,7 +348,7 @@ export default function DecisionLedgerPage() {
             <button
               type="button"
               onClick={() => setShowManualForm(!showManualForm)}
-              className="text-xs px-4 py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold transition-all cursor-pointer shadow-md shadow-fuchsia-500/10 flex items-center gap-1.5"
+              className="text-xs px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer shadow-md shadow-indigo-500/10 flex items-center gap-1.5"
             >
               Log New Decision
             </button>
@@ -266,7 +366,7 @@ export default function DecisionLedgerPage() {
       {/* Manual Decision Form */}
       {showManualForm && activeTab === 'ledger' && (
         <div className="glass-panel border border-zinc-900/60 p-6 rounded-2xl relative overflow-hidden bg-zinc-950/20">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-fuchsia-500/5 blur-2xl rounded-full" />
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-2xl rounded-full" />
           <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
             🎯 Log a Decision Tracker Manually
           </h2>
@@ -285,7 +385,7 @@ export default function DecisionLedgerPage() {
                       const th = thoughtsList.find((t) => t.id === id);
                       setManualContent(th?.content || '');
                     }}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-fuchsia-500 focus:border-transparent"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
                   >
                     <option value="" disabled>-- Select a parent thought --</option>
                     {thoughtsList.map((t) => (
@@ -304,7 +404,7 @@ export default function DecisionLedgerPage() {
                     value={manualContent}
                     onChange={(e) => setManualContent(e.target.value)}
                     rows={2}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-fuchsia-500 focus:border-transparent"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -318,7 +418,7 @@ export default function DecisionLedgerPage() {
                     placeholder="E.g., Production build bundle drops by 20%..."
                     value={manualMetric}
                     onChange={(e) => setManualMetric(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-fuchsia-500 focus:border-transparent"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -349,7 +449,7 @@ export default function DecisionLedgerPage() {
                           }}
                           className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-fuchsia-600/20 border-fuchsia-500/40 text-fuchsia-300'
+                              ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300'
                               : 'bg-zinc-950 border-zinc-900 text-zinc-505 hover:text-zinc-300'
                           }`}
                         >
@@ -372,7 +472,7 @@ export default function DecisionLedgerPage() {
                           // Fallback for older browsers
                         }
                       }}
-                      className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-fuchsia-500 focus:border-transparent select-none cursor-pointer"
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent select-none cursor-pointer"
                     />
                     <Calendar className="w-4 h-4 text-zinc-550 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
@@ -390,7 +490,7 @@ export default function DecisionLedgerPage() {
               <button
                 type="submit"
                 disabled={isCreatingManual}
-                className="text-xs px-4 py-2 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
+                className="text-xs px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
               >
                 {isCreatingManual && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Log Decision
@@ -407,13 +507,12 @@ export default function DecisionLedgerPage() {
       {activeTab === 'ledger' && (
         loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-zinc-500">
-            <Loader2 className="w-8 h-8 animate-spin text-fuchsia-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
             <span className="text-xs">Loading ledger analytics...</span>
           </div>
         ) : (
-        <>
-          {/* Stats Analytics Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Success Rate */}
             <div className="glass-panel border border-zinc-900/60 p-5 rounded-2xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-xl rounded-full" />
@@ -433,12 +532,12 @@ export default function DecisionLedgerPage() {
 
             {/* Total Tracked */}
             <div className="glass-panel border border-zinc-900/60 p-5 rounded-2xl relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-fuchsia-500/5 blur-xl rounded-full" />
+              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-xl rounded-full" />
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                   Total Tracked
                 </span>
-                <GitMerge className="w-4 h-4 text-fuchsia-400" />
+                <GitMerge className="w-4 h-4 text-indigo-400" />
               </div>
               <div className="mt-3 flex items-baseline gap-1.5">
                 <span className="text-3xl font-black text-white">{totalDecisions}</span>
@@ -456,7 +555,7 @@ export default function DecisionLedgerPage() {
                 <Clock className="w-4 h-4 text-cyan-400" />
               </div>
               <div className="mt-3 flex items-baseline gap-1.5">
-                <span className="text-3xl font-black text-white">{activeDecisions.length}</span>
+                <span className="text-3xl font-black text-white">{pendingDecisions.length}</span>
                 <span className="text-[10px] text-zinc-500">pending outcome</span>
               </div>
             </div>
@@ -479,244 +578,330 @@ export default function DecisionLedgerPage() {
             </div>
           </div>
 
-          {/* Ledger Lists */}
-          <div className="space-y-8">
-            {/* Section 1: Outcome Review Due */}
-            {overdueDecisions.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
-                  <h2 className="text-sm font-extrabold uppercase tracking-wider text-white">
-                    ⚠️ Outcome Review Due
-                  </h2>
-                </div>
-                <div className="grid gap-4">
-                  {overdueDecisions.map((d) => (
-                    <div key={d.id} className="glass-panel border border-amber-500/20 bg-amber-950/5 p-5 rounded-xl space-y-4">
-                      <div className="flex justify-between items-start gap-4">
-                        <div>
-                          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">
-                            Decision note
-                          </span>
-                          <h3 className="text-white text-sm font-semibold mt-0.5 leading-relaxed">
-                            {d.title}
-                          </h3>
-                          <span className="text-[10px] text-zinc-500 italic block mt-1">
-                            Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}"
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-semibold whitespace-nowrap">
-                          Past Due
-                        </span>
-                      </div>
+          {/* Sub-Tabs Selector & Filter Panel */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-900 pb-2">
+            <div className="flex gap-4">
+              <button
+                onClick={() => setLedgerTab('active')}
+                className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer relative ${
+                  ledgerTab === 'active' ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                🎯 Active Trackers ({pendingDecisions.length})
+                {ledgerTab === 'active' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-indigo-500 rounded-full" />
+                )}
+              </button>
+              <button
+                onClick={() => setLedgerTab('historical')}
+                className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer relative ${
+                  ledgerTab === 'historical' ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                📚 Historical Ledger ({completedDecisions.length})
+                {ledgerTab === 'historical' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-indigo-500 rounded-full" />
+                )}
+              </button>
+            </div>
+          </div>
 
-                      <div className="p-3 bg-black/25 rounded-lg border border-zinc-900/80 text-xs">
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">
-                          Success Metric
-                        </span>
-                        <p className="text-zinc-300 italic">"{d.successMetric}"</p>
-                      </div>
+          {/* Filter Bar Panel */}
+          <div className="glass-panel border border-zinc-900/60 p-4 rounded-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            {/* Status Filter */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Filter by Status</span>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="all">All Outcomes</option>
+                {ledgerTab === 'active' ? (
+                  <option value="pending">Pending</option>
+                ) : (
+                  <>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                    <option value="trash">Trashed</option>
+                  </>
+                )}
+              </select>
+            </div>
 
-                      {reviewingId !== d.id ? (
-                        <div className="flex justify-between items-center pt-2">
-                          <span className="text-[10px] text-zinc-500 flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" /> Due since: {new Date(d.expectedOutcomeDate).toLocaleDateString()}
-                          </span>
-                          <button
-                            onClick={() => handleStartReview(d)}
-                            className="text-xs px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-all cursor-pointer shadow-md shadow-amber-500/10"
-                          >
-                            Log Outcome
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-4 pt-2 border-t border-zinc-900/60">
-                          <div>
-                            <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
-                              Retrospective Status
-                            </label>
-                            <div className="flex gap-2">
-                              {(['success', 'failed', 'neutral'] as const).map((s) => (
-                                <button
-                                  key={s}
-                                  onClick={() => setOutcomeStatus(s)}
-                                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize ${
-                                    outcomeStatus === s
-                                      ? s === 'success'
-                                        ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-400 shadow-md'
-                                        : s === 'failed'
-                                          ? 'bg-rose-600/20 border-rose-500/40 text-rose-400 shadow-md'
-                                          : 'bg-zinc-800 border-zinc-700 text-zinc-300'
-                                      : 'bg-zinc-950 border-zinc-900 text-zinc-500 hover:text-zinc-400'
-                                  }`}
-                                >
-                                  {s}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">
-                              Retrospective Journal (What actually happened?)
-                            </label>
-                            <textarea
-                              placeholder="Detail what happened, why it succeeded/failed, and lessons learned..."
-                              value={outcomeNotes}
-                              onChange={(e) => setOutcomeNotes(e.target.value)}
-                              rows={2}
-                              className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={handleCancelReview}
-                              className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => handleSaveReview(d.id)}
-                              disabled={isSubmitting}
-                              className="text-[10px] px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-all cursor-pointer flex items-center gap-1"
-                            >
-                              {isSubmitting && <Loader2 className="w-3 h-3 animate-spin" />}
-                              Log Outcome
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Created Date Exact Filter */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Created Date</span>
+              <select
+                value={filterCreatedDate}
+                onChange={(e) => setFilterCreatedDate(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="all">All Dates</option>
+                {uniqueCreatedDates.map((dateStr) => (
+                  <option key={dateStr} value={dateStr}>
+                    {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            {/* Section 2: Active Trackers */}
+            {/* Target Outcome Deadline Filter */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Due On/Before</span>
+              <input
+                type="date"
+                value={filterTargetDate}
+                onChange={(e) => setFilterTargetDate(e.target.value)}
+                onClick={(e) => {
+                  try {
+                    (e.target as any).showPicker();
+                  } catch (err) {}
+                }}
+                className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              />
+            </div>
+
+            {/* Sort Order */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Sort by Creation</span>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
+                className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2 text-white outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tab Render: Active Trackers */}
+          {ledgerTab === 'active' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-6 bg-fuchsia-500 rounded-full" />
-                <h2 className="text-sm font-extrabold uppercase tracking-wider text-white">
-                  🎯 Active Trackers ({activeDecisions.length})
-                </h2>
-              </div>
-
-              {activeDecisions.length === 0 ? (
-                <div className="glass-panel border border-zinc-900/60 p-8 text-center rounded-xl text-xs text-zinc-500">
-                  No active trackers configured. Log a decision note on your timeline to activate tracking.
+              {displayPendingDecisions.length === 0 ? (
+                <div className="glass-panel border border-zinc-900/60 p-12 text-center rounded-2xl text-zinc-500 text-xs">
+                  No active trackers match your selected criteria.
                 </div>
               ) : (
                 <div className="grid md:grid-cols-2 gap-4">
-                  {activeDecisions.map((d) => (
-                    <div key={d.id} className="glass-panel border border-zinc-900/60 p-5 rounded-xl flex flex-col justify-between gap-4">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-start gap-3">
-                          <span className="text-[9px] px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 font-semibold tracking-wide">
-                            ⏳ Tracking Active
-                          </span>
-                          <span className="text-[10px] text-zinc-500 flex items-center gap-1 font-semibold">
-                            <Clock className="w-3 h-3 text-cyan-400" /> {Math.ceil((d.expectedOutcomeDate - Date.now()) / (1000 * 60 * 60 * 24))} days left
-                          </span>
-                        </div>
-                        <h3 className="text-zinc-200 text-xs font-bold leading-relaxed truncate">
-                          {d.title}
-                        </h3>
-                        <span className="text-[10px] text-zinc-500 italic block">
-                          Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}"
-                        </span>
-                        <p className="text-zinc-400 text-xs italic leading-relaxed line-clamp-3 bg-black/20 p-2.5 rounded border border-zinc-950">
-                          Success: "{d.successMetric}"
-                        </p>
-                      </div>
+                  {displayPendingDecisions.map((d) => {
+                    const daysLeft = Math.ceil((d.expectedOutcomeDate - Date.now()) / (1000 * 60 * 60 * 24));
+                    const isOverdue = Date.now() > d.expectedOutcomeDate;
+                    
+                    // Parse intermediate AI Insights
+                    let evolutionSummary = '';
+                    let jarvisInsight = '';
+                    if (d.evolutionInsight) {
+                      try {
+                        const parsed = JSON.parse(d.evolutionInsight);
+                        evolutionSummary = parsed.summary || '';
+                        jarvisInsight = parsed.insight || '';
+                      } catch (err) {}
+                    }
 
-                      {reviewingId !== d.id ? (
-                        <div className="flex justify-between items-center text-[10px] text-zinc-500 border-t border-zinc-900/60 pt-3">
-                          <span>Expected: {new Date(d.expectedOutcomeDate).toLocaleDateString()}</span>
-                          <button 
-                            onClick={() => handleStartReview(d)}
-                            className="text-[9px] text-fuchsia-400 hover:text-fuchsia-300 font-semibold flex items-center gap-0.5"
-                          >
-                            Review Now <ArrowRight className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-4 pt-2 border-t border-zinc-900/60">
+                    return (
+                      <div key={d.id} className={`glass-panel border p-5 rounded-2xl flex flex-col justify-between gap-4 transition-all duration-300 ${
+                        isOverdue ? 'border-amber-500/20 bg-amber-950/5' : 'border-zinc-900/80 hover:border-zinc-800'
+                      }`}>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-start gap-3">
+                            <span className={`text-[9px] px-2 py-0.5 rounded font-semibold tracking-wide uppercase ${
+                              isOverdue 
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/25 animate-pulse' 
+                                : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/25'
+                            }`}>
+                              {isOverdue ? '⚠️ Overdue Review' : '⏳ Tracking Active'}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 flex items-center gap-1 font-semibold">
+                              <Clock className="w-3 h-3 text-cyan-400" /> 
+                              {isOverdue ? 'Review Required' : `${daysLeft} days left`}
+                            </span>
+                          </div>
+
                           <div>
-                            <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
-                              Retrospective Status
-                            </label>
-                            <div className="flex gap-2">
-                              {(['success', 'failed', 'neutral'] as const).map((s) => (
-                                <button
-                                  key={s}
-                                  onClick={() => setOutcomeStatus(s)}
-                                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer capitalize ${
-                                    outcomeStatus === s
-                                      ? s === 'success'
-                                        ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-400 shadow-md'
-                                        : s === 'failed'
-                                          ? 'bg-rose-600/20 border-rose-500/40 text-rose-400 shadow-md'
-                                          : 'bg-zinc-800 border-zinc-700 text-zinc-300'
-                                      : 'bg-zinc-950 border-zinc-900 text-zinc-500 hover:text-zinc-400'
-                                  }`}
-                                >
-                                  {s}
-                                </button>
-                              ))}
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Decision context</span>
+                            <h3 className="text-zinc-100 text-xs font-bold leading-relaxed mt-0.5">
+                              {d.title}
+                            </h3>
+                            <span className="text-[10px] text-zinc-500 italic block mt-1">
+                              Mapped to Thought: "{d.thoughtContent.length > 70 ? `${d.thoughtContent.slice(0, 70)}...` : d.thoughtContent}"
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-black/30 rounded-xl border border-zinc-900 text-xs space-y-1">
+                            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">Success Metric</span>
+                            <p className="text-zinc-300 italic">"{d.successMetric}"</p>
+                          </div>
+
+                          {/* Dynamic Progress Timeline Stack */}
+                          {d.logs && d.logs.length > 0 && (
+                            <div className="space-y-2 pt-1">
+                              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
+                                Progress logs timeline ({d.logs.length})
+                              </span>
+                              <div className="relative border-l border-zinc-900 ml-1.5 pl-3.5 space-y-2.5">
+                                {d.logs.map((log) => (
+                                  <div key={log.id} className="relative text-xs">
+                                    <span className="absolute -left-[20px] top-1 w-2.5 h-2.5 rounded-full bg-zinc-900 border border-zinc-800" />
+                                    <div className="text-[10px] text-zinc-500">
+                                      {new Date(log.createdAt).toLocaleDateString()}
+                                    </div>
+                                    <p className="text-zinc-300 font-medium leading-relaxed mt-0.5">{log.note}</p>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">
-                              Retrospective Journal (What actually happened?)
-                            </label>
-                            <textarea
-                              placeholder="Detail what happened, why it succeeded/failed, and lessons learned..."
-                              value={outcomeNotes}
-                              onChange={(e) => setOutcomeNotes(e.target.value)}
-                              rows={2}
-                              className="w-full text-xs px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-fuchsia-500"
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={handleCancelReview}
-                              className="text-[10px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => handleSaveReview(d.id)}
-                              disabled={isSubmitting}
-                              className="text-[10px] px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-semibold transition-all cursor-pointer flex items-center gap-1"
-                            >
-                              {isSubmitting && <Loader2 className="w-3 h-3 animate-spin" />}
-                              Log Outcome
-                            </button>
-                          </div>
+                          )}
+
+                          {/* JARVIS Evolution Summary & Proactive Insights */}
+                          {evolutionSummary && (
+                            <div className="p-4 rounded-xl border border-amber-500/10 bg-amber-500/[0.02] space-y-3 shadow-sm relative overflow-hidden">
+                              <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/[0.02] blur-xl rounded-full" />
+                              <div className="space-y-1 relative">
+                                <span className="text-[9px] font-extrabold text-amber-400 uppercase tracking-wider block">AI Progress Summary</span>
+                                <p className="text-zinc-300 text-xs leading-relaxed">{evolutionSummary}</p>
+                              </div>
+                              <div className="space-y-1 border-t border-amber-500/10 pt-2.5 relative">
+                                <span className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-wider block flex items-center gap-1.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" /> JARVIS Insight
+                                </span>
+                                <p className="text-zinc-200 text-xs leading-relaxed font-semibold italic">"{jarvisInsight}"</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        <div className="border-t border-zinc-900/60 pt-3.5 space-y-4">
+                          {reviewingId !== d.id && (
+                            <div className="flex gap-2">
+                              {/* Log Progress Button */}
+                              <button
+                                onClick={() => setExpandedProgressId(expandedProgressId === d.id ? null : d.id)}
+                                className="flex-1 text-[10px] py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                              >
+                                <Activity className="w-3.5 h-3.5" />
+                                {expandedProgressId === d.id ? 'Hide Update' : 'Log Progress'}
+                              </button>
+
+                              {/* Review & Close Button */}
+                              <button
+                                onClick={() => handleStartReview(d)}
+                                className="flex-1 text-[10px] py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md"
+                              >
+                                <CheckSquare className="w-3.5 h-3.5" />
+                                Review & Close
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Expandable Progress Log Input Form */}
+                          {expandedProgressId === d.id && (
+                            <div className="space-y-2 pt-1 animate-slideDown">
+                              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Add progress log</span>
+                              <textarea
+                                placeholder="Detail what actions you took, roadblocks experienced, or intermediate milestones met..."
+                                value={progressNoteText[d.id] || ''}
+                                onChange={(e) => setProgressNoteText({ ...progressNoteText, [d.id]: e.target.value })}
+                                rows={2}
+                                className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
+                              />
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => setExpandedProgressId(null)}
+                                  className="text-[9px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleSaveProgress(d.id)}
+                                  disabled={isSubmittingProgress[d.id]}
+                                  className="text-[9px] px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer flex items-center gap-1"
+                                >
+                                  {isSubmittingProgress[d.id] && <Loader2 className="w-3 h-3 animate-spin" />}
+                                  Log Update
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Close Review Status Panel */}
+                          {reviewingId === d.id && (
+                            <div className="space-y-4 pt-1 animate-slideDown">
+                              <div>
+                                <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1.5">
+                                  Retrospective Close Status
+                                </label>
+                                <div className="flex gap-2">
+                                  {([
+                                    { label: 'success', color: 'bg-emerald-600/20 border-emerald-500/40 text-emerald-400' },
+                                    { label: 'failed', color: 'bg-rose-600/20 border-rose-500/40 text-rose-400' },
+                                    { label: 'trash', color: 'bg-zinc-800 border-zinc-700 text-zinc-300' }
+                                  ] as const).map((s) => (
+                                    <button
+                                      key={s.label}
+                                      onClick={() => setOutcomeStatus(s.label)}
+                                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer capitalize ${
+                                        outcomeStatus === s.label
+                                          ? `${s.color} shadow-md`
+                                          : 'bg-zinc-950 border-zinc-900 text-zinc-500 hover:text-zinc-400'
+                                      }`}
+                                    >
+                                      {s.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">
+                                  Retrospective Journal (What actually happened?)
+                                </label>
+                                <textarea
+                                  placeholder="Detail what happened, why it succeeded/failed, and lessons learned..."
+                                  value={outcomeNotes}
+                                  onChange={(e) => setOutcomeNotes(e.target.value)}
+                                  rows={2}
+                                  className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
+                                />
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={handleCancelReview}
+                                  className="text-[9px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleSaveReview(d.id)}
+                                  disabled={isSubmitting}
+                                  className="text-[9px] px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer flex items-center gap-1"
+                                >
+                                  {isSubmitting && <Loader2 className="w-3 h-3 animate-spin" />}
+                                  Log Retrospective
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
+          )}
 
-            {/* Section 3: Historical Ledger */}
+          {/* Tab Render: Historical Ledger */}
+          {ledgerTab === 'historical' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-6 bg-zinc-700 rounded-full" />
-                <h2 className="text-sm font-extrabold uppercase tracking-wider text-white">
-                  📚 Historical Ledger ({completedDecisions.length})
-                </h2>
-              </div>
-
-              {completedDecisions.length === 0 ? (
-                <div className="glass-panel border border-zinc-900/60 p-8 text-center rounded-xl text-xs text-zinc-500">
-                  No historical outcomes logged yet.
+              {displayCompletedDecisions.length === 0 ? (
+                <div className="glass-panel border border-zinc-900/60 p-12 text-center rounded-2xl text-zinc-500 text-xs">
+                  No historical outcomes configured.
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {completedDecisions.map((d) => (
-                    <div key={d.id} className="glass-panel border border-zinc-900/60 p-5 rounded-xl space-y-3">
+                  {displayCompletedDecisions.map((d) => (
+                    <div key={d.id} className="glass-panel border border-zinc-900/60 p-5 rounded-2xl space-y-4">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
                           <h3 className="text-white text-xs font-bold truncate max-w-lg">
@@ -736,8 +921,8 @@ export default function DecisionLedgerPage() {
                           }`}>
                             {d.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5" />}
                             {d.status === 'failed' && <XCircle className="w-3.5 h-3.5" />}
-                            {d.status === 'neutral' && <HelpCircle className="w-3.5 h-3.5" />}
-                            {d.status}
+                            {d.status === 'trash' && <HelpCircle className="w-3.5 h-3.5" />}
+                            {d.status === 'trash' ? 'trashed' : d.status}
                           </span>
                           <span className="text-[10px] text-zinc-500 whitespace-nowrap">
                             Logged: {d.reviewedAt ? new Date(d.reviewedAt).toLocaleDateString() : ''}
@@ -745,27 +930,55 @@ export default function DecisionLedgerPage() {
                         </div>
                       </div>
 
+                      {/* Expected Metric & Retrospective Journal */}
                       <div className="grid md:grid-cols-2 gap-4 text-xs pt-2 border-t border-zinc-950/40">
                         <div className="space-y-1">
                           <p className="text-zinc-500 font-bold text-[9px] uppercase tracking-wider">Expected Metric:</p>
-                          <p className="text-zinc-300 italic bg-black/10 p-2 rounded">"{d.successMetric}"</p>
+                          <p className="text-zinc-300 italic bg-black/10 p-2.5 rounded-xl border border-zinc-900/60">"{d.successMetric}"</p>
                         </div>
                         {d.outcomeNotes && (
                           <div className="space-y-1">
                             <p className="text-zinc-500 font-bold text-[9px] uppercase tracking-wider">Retrospective Journal:</p>
-                            <p className="text-zinc-300 leading-relaxed font-mono bg-black/10 p-2 rounded">{d.outcomeNotes}</p>
+                            <p className="text-zinc-300 leading-relaxed bg-black/10 p-2.5 rounded-xl border border-zinc-900/60">{d.outcomeNotes}</p>
                           </div>
                         )}
                       </div>
+
+                      {/* Display Progress Stack History */}
+                      {d.logs && d.logs.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-zinc-950/40">
+                          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
+                            Evolution progress stack
+                          </span>
+                          <div className="relative border-l border-zinc-900 ml-1.5 pl-3.5 space-y-2">
+                            {d.logs.map((log) => (
+                              <div key={log.id} className="relative text-xs">
+                                <span className="absolute -left-[20px] top-1 w-2 h-2 rounded-full bg-zinc-900 border border-zinc-800" />
+                                <span className="text-[9px] text-zinc-500">{new Date(log.createdAt).toLocaleDateString()}</span>
+                                <p className="text-zinc-300 leading-relaxed mt-0.5">{log.note}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Final AI Synthesis Summary */}
+                      {d.finalSynthesis && (
+                        <div className="p-4 rounded-xl border border-indigo-500/10 bg-indigo-500/[0.02] space-y-1">
+                          <span className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-wider block flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> AI Resolution Synthesis
+                          </span>
+                          <p className="text-zinc-200 text-xs leading-relaxed italic">"{d.finalSynthesis}"</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          </div>
+          )}
         </>
-        )
-      )}
+      ))}
     </div>
   );
 }

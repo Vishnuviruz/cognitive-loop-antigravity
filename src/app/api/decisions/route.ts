@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { decisions, thoughts } from '@/db/schema';
+import { decisions, thoughts, decisionProgressLogs } from '@/db/schema';
 import { getSessionUser } from '@/lib/auth';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 import crypto from 'crypto';
 
 // GET /api/decisions - Fetch all decision trackers for the logged-in user
@@ -14,7 +14,7 @@ export async function GET() {
     }
 
     // Query decisions, pulling title directly from decisions table, and join thoughts for the parent context note
-    const list = await db
+    const rawList = await db
       .select({
         id: decisions.id,
         thoughtId: decisions.thoughtId,
@@ -24,6 +24,8 @@ export async function GET() {
         status: decisions.status,
         outcomeNotes: decisions.outcomeNotes,
         reviewedAt: decisions.reviewedAt,
+        evolutionInsight: decisions.evolutionInsight,
+        finalSynthesis: decisions.finalSynthesis,
         createdAt: decisions.createdAt,
         thoughtContent: thoughts.content,
         thoughtSummary: thoughts.summary,
@@ -32,6 +34,20 @@ export async function GET() {
       .innerJoin(thoughts, eq(decisions.thoughtId, thoughts.id))
       .where(eq(decisions.userId, user.id))
       .orderBy(desc(decisions.createdAt));
+
+    // Fetch progress logs for all decisions in parallel
+    const list = await Promise.all(
+      rawList.map(async (d) => {
+        const logs = await db.query.decisionProgressLogs.findMany({
+          where: eq(decisionProgressLogs.decisionId, d.id),
+          orderBy: asc(decisionProgressLogs.createdAt),
+        });
+        return {
+          ...d,
+          logs,
+        };
+      })
+    );
 
     return NextResponse.json({ decisions: list });
   } catch (error: any) {

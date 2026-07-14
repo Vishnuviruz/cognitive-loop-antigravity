@@ -36,4 +36,8 @@ This folder documents the incremental development milestones and code releases o
 
 ### 8. [Phase 8: Interface Refinement](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Trajectory/Phase%208%20-%20Interface%20Refinement.md)
 *   **Release Focus**: Reordering, simplifying menu links, and renaming elements to simple action-oriented terms: "+ Add Thoughts", "Connections & Ideas", "Decisions", "Tasks", and "Settings".
-*   **Read last** to examine how navigation controls were streamlined.
+*   **Read eighth** to examine how navigation controls were streamlined.
+
+### 9. [Phase 9: Decision Evolution](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Trajectory/Phase%209%20-%20Decision%20Evolution.md)
+*   **Release Focus**: Chronological progress updates timeline, inline update notes, status closures (Success, Failed, Trashed), specific JARVIS Insights, exact Created Date dropdown filters, and Lessons Vault Case Study details.
+*   **Read last** to examine how decision tracking was extended into an evolutionary lifecycle tracker.
