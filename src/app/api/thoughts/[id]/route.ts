@@ -32,6 +32,7 @@ export async function PATCH(
     if (body.content !== undefined) updateFields.content = body.content;
     if (body.tags !== undefined) updateFields.tags = JSON.stringify(body.tags);
     if (body.suggestedTasks !== undefined) updateFields.suggestedTasks = JSON.stringify(body.suggestedTasks);
+    if (body.suggestedDecisions !== undefined) updateFields.suggestedDecisions = JSON.stringify(body.suggestedDecisions);
     if (body.parentId !== undefined) updateFields.parentId = body.parentId;
     if (body.groupId !== undefined) updateFields.groupId = body.groupId;
 

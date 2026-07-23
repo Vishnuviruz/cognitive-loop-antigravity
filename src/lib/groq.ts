@@ -91,6 +91,17 @@ export interface ActionItemExtract {
   priority: string;
 }
 
+export interface SuggestedDecisionExtract {
+  title: string;
+  successMetric: string;
+}
+
+export interface UserContextForAnalysis {
+  recentThoughts: { content: string; category: string; summary: string }[];
+  activeDecisions: { title: string; successMetric: string; status: string }[];
+  pendingTasks: { title: string; priority: string; status: string }[];
+}
+
 export interface ThoughtAnalysis {
   summary: string;
   tags: string[];
@@ -98,6 +109,7 @@ export interface ThoughtAnalysis {
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   jarvisInsight: string;
   actionItems: ActionItemExtract[];
+  suggestedDecisions: SuggestedDecisionExtract[];
   isDecision: boolean;
   decisionConfidence: number; // 0.0 – 1.0
 }
@@ -108,7 +120,8 @@ export async function analyzeThought(
   customCategories?: string[],
   customTags?: string[],
   customPriorities?: string[],
-  customStatuses?: string[]
+  customStatuses?: string[],
+  userContext?: UserContextForAnalysis
 ): Promise<ThoughtAnalysis> {
   const name = userName && userName !== 'Demo Explorer' ? userName : 'Vishnu';
 
@@ -175,6 +188,14 @@ export async function analyzeThought(
     const isDecision = decisionKeywords.some((kw) => lower.includes(kw));
     const decisionConfidence = isDecision ? 0.6 : 0.0;
 
+    const suggestedDecisions: SuggestedDecisionExtract[] = [];
+    if (isDecision || category.toLowerCase() === 'goal' || category.toLowerCase() === 'idea') {
+      suggestedDecisions.push({
+        title: `Validate and commit to: ${excerpt.replace(/"/g, '')}`,
+        successMetric: `Successfully build demo model and test with target audience`
+      });
+    }
+
     return {
       summary,
       tags,
@@ -182,6 +203,7 @@ export async function analyzeThought(
       sentiment,
       jarvisInsight,
       actionItems,
+      suggestedDecisions,
       isDecision,
       decisionConfidence,
     };
@@ -194,10 +216,17 @@ export async function analyzeThought(
       messages: [
         {
           role: 'system',
-          content: `You are JARVIS / F.R.I.D.A.Y., the advanced and deeply loyal AI personal assistant. Analyze the user thought and extract its core summary, relevant tags, classification category, overall sentiment, generate a proactive JARVIS Insight, and extract concrete action items.
+          content: `You are JARVIS / F.R.I.D.A.Y., the advanced and deeply loyal AI personal assistant. Analyze the user thought and extract its core summary, relevant tags, classification category, overall sentiment, generate a proactive JARVIS Insight, extract concrete action items, and suggest relevant decisions the user can commit to.
            
 Address the user directly by their first name: "${name}". Do NOT use generic honorifics like "Sir".
+${userContext ? `
+We are also providing you with the user's broader cognitive trajectory context (recent thoughts, active decisions, and pending tasks) to find patterns and relationships:
+- Recent Thoughts: ${JSON.stringify(userContext.recentThoughts)}
+- Active Tracked Decisions: ${JSON.stringify(userContext.activeDecisions)}
+- Pending Action Items: ${JSON.stringify(userContext.pendingTasks)}
 
+Do NOT analyze the current thought in isolation. Evaluate it relative to this context to see if it links to, continues, or resolves existing themes, goals, or problems.
+` : ''}
 CRITICAL CONSTRAINTS:
 1. Category: You MUST select the thought category from the following user-configured list ONLY: ${JSON.stringify(categoriesList)}. Do not select any category outside this list.
 2. Tags: You MUST select tags from the following user-configured list ONLY: ${JSON.stringify(tagsList)}. Select between 1 to 5 tags from this list that represent the thought. If none fit perfectly, return an empty tags array [].
@@ -218,10 +247,17 @@ You must respond with a JSON object matching this structure:
       "description": "Detailed description of what needs to be done and why.",
       "priority": "One priority level from the configured priorities list only"
     }
+  ],
+  "suggestedDecisions": [
+    {
+      "title": "Short, actionable suggested decision commitment (e.g. 'Commit to building a Next.js MVP')",
+      "successMetric": "A clear, measurable layman-friendly indicator of outcome success (e.g. 'Working demo ready and pitched to 3 potential founders')"
+    }
   ]
 }
 
-For actionItems: Extract 0 to 3 concrete, actionable tasks from the thought. If the thought is purely reflective with no clear next steps, return an empty array []. Focus on tasks that would move the needle — research, prototyping, outreach, validation, etc.
+For actionItems: Extract 0 to 3 concrete, actionable tasks from the thought. If the thought is purely reflective with no clear next steps, return an empty array [].
+For suggestedDecisions: Extract 0 to 2 concrete decision suggestions that the user could track. Focus on commitments that align with the current thought and build upon past thoughts/goals.
 For isDecision: Only mark true for clear commitments or choices (e.g. "I decided to...", "I'm going to switch to...", "We will use..."). Exploratory thoughts are NOT decisions.`,
         },
         {

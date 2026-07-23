@@ -104,6 +104,7 @@ export async function GET(request: Request) {
         ...t,
         tags: JSON.parse(t.tags) as string[],
         suggestedTasks: t.suggestedTasks ? (JSON.parse(t.suggestedTasks) as any[]) : [],
+        suggestedDecisions: t.suggestedDecisions ? (JSON.parse(t.suggestedDecisions) as any[]) : [],
         connections,
         decision: decisionRecord,
         decisions: associatedDecisions,
@@ -184,10 +185,35 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log('Fetching user trajectory context (thoughts, decisions, tasks) for relationship mapping...');
+    const [recentThoughtsDb, activeDecisionsDb, pendingTasksDb] = await Promise.all([
+      db.query.thoughts.findMany({
+        where: eq(thoughts.userId, user.id),
+        orderBy: desc(thoughts.createdAt),
+        limit: 15,
+      }),
+      db.query.decisions.findMany({
+        where: and(eq(decisions.userId, user.id), eq(decisions.status, 'pending')),
+        orderBy: desc(decisions.createdAt),
+        limit: 10,
+      }),
+      db.query.actionItems.findMany({
+        where: and(eq(actionItems.userId, user.id), eq(actionItems.status, 'pending')),
+        orderBy: desc(actionItems.createdAt),
+        limit: 15,
+      }),
+    ]);
+
+    const userContext = {
+      recentThoughts: recentThoughtsDb.map((t) => ({ content: t.content, category: t.category, summary: t.summary })),
+      activeDecisions: activeDecisionsDb.map((d) => ({ title: d.title, successMetric: d.successMetric, status: d.status })),
+      pendingTasks: pendingTasksDb.map((ai) => ({ title: ai.title, priority: ai.priority, status: ai.status })),
+    };
+
     console.log('Initiating AI analysis pipeline for thought content with custom constraints...');
     // 1. Run AI pipelines in parallel (Analysis & Embeddings)
     const [analysis, embedding] = await Promise.all([
-      analyzeThought(content, user.name ?? undefined, customCategories, customTags, customPriorities, customStatuses),
+      analyzeThought(content, user.name ?? undefined, customCategories, customTags, customPriorities, customStatuses, userContext),
       getEmbedding(content),
     ]);
 
@@ -205,6 +231,7 @@ export async function POST(request: Request) {
       embedding: JSON.stringify(embedding),
       jarvisInsight: analysis.jarvisInsight,
       suggestedTasks: JSON.stringify(analysis.actionItems || []),
+      suggestedDecisions: JSON.stringify(analysis.suggestedDecisions || []),
       createdAt: Date.now(),
     });
 
@@ -267,6 +294,7 @@ export async function POST(request: Request) {
         tags: analysis.tags,
         jarvisInsight: analysis.jarvisInsight,
         suggestedTasks: analysis.actionItems || [],
+        suggestedDecisions: analysis.suggestedDecisions || [],
         actionItems: [],
         connections: newConnections,
         createdAt: Date.now(),

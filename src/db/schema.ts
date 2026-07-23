@@ -26,6 +26,7 @@ export const thoughts = sqliteTable('thoughts', {
   embedding: text('embedding').notNull(), // JSON string representing number[]
   jarvisInsight: text('jarvis_insight'),
   suggestedTasks: text('suggested_tasks'), // JSON string representing { title: string, description?: string, priority?: string }[]
+  suggestedDecisions: text('suggested_decisions'), // JSON string representing { title: string, successMetric: string }[]
   parentId: text('parent_id'), // Self-referencing FK for threaded thoughts
   groupId: text('group_id'), // FK to thought_groups for organizing into folders
   createdAt: integer('created_at').notNull(),

@@ -61,6 +61,11 @@ interface SuggestedTask {
   priority?: 'high' | 'medium' | 'low';
 }
 
+interface SuggestedDecision {
+  title: string;
+  successMetric: string;
+}
+
 interface Thought {
   id: string;
   content: string;
@@ -71,6 +76,7 @@ interface Thought {
   connections: Connection[];
   jarvisInsight?: string | null;
   suggestedTasks?: SuggestedTask[];
+  suggestedDecisions?: SuggestedDecision[];
   decision?: Decision | null;
   decisions?: Decision[] | null;
   actionItems?: TimelineActionItem[];
@@ -139,6 +145,10 @@ export default function DashboardPage() {
   // Suggested Tasks Promotion States
   const [selectedSuggestedTasks, setSelectedSuggestedTasks] = useState<Record<string, string[]>>({});
   const [isPromotingSuggested, setIsPromotingSuggested] = useState<string | null>(null);
+
+  // Suggested Decisions Promotion States
+  const [selectedSuggestedDecisions, setSelectedSuggestedDecisions] = useState<Record<string, string[]>>({});
+  const [isPromotingSuggestedDecision, setIsPromotingSuggestedDecision] = useState<string | null>(null);
 
   // Thought Deletion
   const [deleteThoughtId, setDeleteThoughtId] = useState<string | null>(null);
@@ -570,6 +580,82 @@ export default function DashboardPage() {
       console.error('Failed to promote suggested tasks:', err);
     } finally {
       setIsPromotingSuggested(null);
+    }
+  };
+
+  const handleToggleSuggestedDecisionCheck = (thoughtId: string, decisionTitle: string) => {
+    setSelectedSuggestedDecisions((prev) => {
+      const currentSelected = prev[thoughtId] || [];
+      const isSelected = currentSelected.includes(decisionTitle);
+      const nextSelected = isSelected
+        ? currentSelected.filter((t) => t !== decisionTitle)
+        : [...currentSelected, decisionTitle];
+      return {
+        ...prev,
+        [thoughtId]: nextSelected,
+      };
+    });
+  };
+
+  const handlePromoteSuggestedDecisions = async (thought: Thought) => {
+    const selected = selectedSuggestedDecisions[thought.id] || [];
+    if (selected.length === 0) return;
+
+    setIsPromotingSuggestedDecision(thought.id);
+    try {
+      const createdDecisions: any[] = [];
+      for (const title of selected) {
+        const suggested = thought.suggestedDecisions?.find((s) => s.title === title);
+        const successMetric = suggested?.successMetric || `AI-suggested outcome metric from thought: "${thought.summary}".`;
+        
+        const res = await fetch('/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thoughtId: thought.id,
+            title,
+            successMetric,
+            expectedOutcomeDate: Date.now() + 7 * 24 * 60 * 60 * 1000, // default 7 days
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          createdDecisions.push(data.decision);
+        }
+      }
+
+      const remainingSuggested = thought.suggestedDecisions?.filter((s) => !selected.includes(s.title)) || [];
+
+      setThoughtsList((prev) =>
+        prev.map((t) => {
+          if (t.id === thought.id) {
+            return {
+              ...t,
+              suggestedDecisions: remainingSuggested,
+              decisions: [...(t.decisions || []), ...createdDecisions],
+            };
+          }
+          return t;
+        })
+      );
+
+      await fetch(`/api/thoughts/${thought.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          suggestedDecisions: remainingSuggested,
+        }),
+      });
+
+      setSelectedSuggestedDecisions((prev) => ({
+        ...prev,
+        [thought.id]: [],
+      }));
+    } catch (err) {
+      console.error('Failed to promote suggested decisions:', err);
+    } finally {
+      setIsPromotingSuggestedDecision(null);
     }
   };
 
@@ -1330,6 +1416,64 @@ export default function DashboardPage() {
                                         </div>
                                         {s.description && (
                                           <p className="text-[10px] text-zinc-500 leading-normal mt-0.5">{s.description}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Jarvis Curated Decisions */}
+                          {t.suggestedDecisions && t.suggestedDecisions.length > 0 && (
+                            <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" /> Jarvis Curated Decisions
+                                </span>
+                                {(selectedSuggestedDecisions[t.id] || []).length > 0 && (
+                                  <button
+                                    onClick={() => handlePromoteSuggestedDecisions(t)}
+                                    disabled={isPromotingSuggestedDecision === t.id}
+                                    className="text-[10px] px-3 py-1 rounded bg-indigo-650 hover:bg-indigo-600 text-white font-bold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {isPromotingSuggestedDecision === t.id ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <Plus className="w-3 h-3" />
+                                    )}
+                                    Track Decisions ({(selectedSuggestedDecisions[t.id] || []).length})
+                                  </button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-1 gap-2">
+                                {t.suggestedDecisions.map((s, idx) => {
+                                  const isChecked = (selectedSuggestedDecisions[t.id] || []).includes(s.title);
+
+                                  return (
+                                    <div
+                                      key={`${s.title}-${idx}`}
+                                      onClick={() => handleToggleSuggestedDecisionCheck(t.id, s.title)}
+                                      className={`flex items-start gap-2.5 p-3 rounded-lg border bg-zinc-900/10 transition-all cursor-pointer select-none hover:bg-zinc-900/30 ${
+                                        isChecked 
+                                          ? 'border-indigo-500/30 bg-indigo-950/5' 
+                                          : 'border-zinc-900/85 hover:border-zinc-800'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => {}} // Handled by outer div click
+                                        className="mt-1 h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 cursor-pointer shrink-0"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-zinc-200 text-xs font-semibold leading-relaxed">{s.title}</p>
+                                        {s.successMetric && (
+                                          <div className="mt-1.5 p-2 bg-black/20 rounded-md border border-zinc-900/40 text-[10px] text-zinc-400 italic">
+                                            <span className="font-bold text-[8px] text-zinc-500 uppercase block tracking-wider mb-0.5">Success Metric</span>
+                                            "{s.successMetric}"
+                                          </div>
                                         )}
                                       </div>
                                     </div>
