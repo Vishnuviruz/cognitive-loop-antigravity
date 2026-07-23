@@ -38,6 +38,11 @@ This folder documents the incremental development milestones and code releases o
 *   **Release Focus**: Reordering, simplifying menu links, and renaming elements to simple action-oriented terms: "+ Add Thoughts", "Connections & Ideas", "Decisions", "Tasks", and "Settings".
 *   **Read eighth** to examine how navigation controls were streamlined.
 
-### 9. [Phase 9: Decision Evolution](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Trajectory/Phase%209%20-%20Decision%20Evolution.md)
+### 9. [Phase 9: Decision Evolution](file:///Users/vishnu/Documents/Cognitive%20loop%20-%2520antigravity/Project%20Trajectory/Phase%209%20-%20Decision%20Evolution.md)
 *   **Release Focus**: Chronological progress updates timeline, inline update notes, status closures (Success, Failed, Trashed), specific JARVIS Insights, exact Created Date dropdown filters, and Lessons Vault Case Study details.
-*   **Read last** to examine how decision tracking was extended into an evolutionary lifecycle tracker.
+*   **Read ninth** to examine how decision tracking was extended into an evolutionary lifecycle tracker.
+
+### 10. [Phase 10: Global Thinking Companion](file:///Users/vishnu/Documents/Cognitive%20loop%2520-%2520antigravity/Project%20Trajectory/Phase%2010%20-%20Global%20Thinking%20Companion.md)
+*   **Release Focus**: App-wide J.A.R.V.I.S. widget overlays, multiple layout modes, transcription APIs, pause/discard voice controls, and custom styled confirmation dialogs.
+*   **Read last** to explore real-time conversational AI integration.
+

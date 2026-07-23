@@ -22,7 +22,14 @@ Welcome to the **Cognitive Loop** master project plan. This folder details the i
 *   **Status**: 🛠️ **Current Focus**
 *   **Read fifth** to review the plan for chronological progress tracking, AI mid-course insights, trashed decisions, and Lesson Vault case study expansions.
 
-### 6. [Phase 6: Global Thinking Companion](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Plan/Phase%206%20-%20Global%20Thinking%20Companion.md)
+### 6. [Phase 6: Global Thinking Companion](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Plan/Phase%206%20-%20Global%20Thinking%2520Companion.md)
+*   **Status**: ✅ **100% Complete**
+
+### 6.1. [Phase 6.1: Interface & Mode Extensions](file:///Users/vishnu/Documents/Cognitive%20loop%2520-%2520antigravity/Project%20Plan/Phase%206.1%20-%20Interface%2520&%2520Mode%2520Extensions.md)
+*   **Status**: 🛠️ **Current Focus**
+*   **Read next** to review navigation module renaming, light/dark styling mode, and thought-card-based J.A.R.V.I.S. chat overlays.
+
+### 6.2. [Phase 6.2: Grounded Thought Chats](file:///Users/vishnu/Documents/Cognitive%20loop%2520-%2520antigravity/Project%20Plan/Phase%206.2%20-%20Grounded%2520thought%2520chats.md)
 *   **Status**: 📅 **Planned**
 
 ### 7. [Phase 7: Memory Lifecycle](file:///Users/vishnu/Documents/Cognitive%20loop%20-%20antigravity/Project%20Plan/Phase%207%20-%20Memory%20Lifecycle.md)
