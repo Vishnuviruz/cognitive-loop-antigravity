@@ -5,15 +5,23 @@ import { getSessionUser } from '@/lib/auth';
 import { eq, and, asc } from 'drizzle-orm';
 
 // GET /api/chat/messages - Fetch chat history for authenticated user
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: 'unauthorized', message: 'Unauthorized access' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
+
+    const conditions = [eq(chatMessages.userId, user.id)];
+    if (sessionId) {
+      conditions.push(eq(chatMessages.sessionId, sessionId));
+    }
+
     const rawMessages = await db.query.chatMessages.findMany({
-      where: eq(chatMessages.userId, user.id),
+      where: and(...conditions),
       orderBy: asc(chatMessages.createdAt),
     });
 
@@ -35,15 +43,23 @@ export async function GET() {
   }
 }
 
-// DELETE /api/chat/messages - Clear all chat history for authenticated user
-export async function DELETE() {
+// DELETE /api/chat/messages - Clear chat history for authenticated user
+export async function DELETE(request: Request) {
   try {
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: 'unauthorized', message: 'Unauthorized access' }, { status: 401 });
     }
 
-    await db.delete(chatMessages).where(eq(chatMessages.userId, user.id));
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
+
+    const conditions = [eq(chatMessages.userId, user.id)];
+    if (sessionId) {
+      conditions.push(eq(chatMessages.sessionId, sessionId));
+    }
+
+    await db.delete(chatMessages).where(and(...conditions));
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -96,10 +96,20 @@ export const decisionsOutcomeIdx = index('decisions_expected_outcome_idx').on(de
 export const decisionsStatusIdx = index('decisions_status_idx').on(decisions.status);
 export const progressLogsDecisionIdx = index('progress_logs_decision_idx').on(decisionProgressLogs.decisionId);
 
+// Chat sessions grouping message threads
+export const chatSessions = sqliteTable('chat_sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull().default('New Conversation'),
+  isPinned: integer('is_pinned').notNull().default(0), // 0 = false, 1 = true
+  createdAt: integer('created_at').notNull(),
+});
+
 // Persistent chat memory for the Thinking Companion
 export const chatMessages = sqliteTable('chat_messages', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sessionId: text('session_id').references(() => chatSessions.id, { onDelete: 'cascade' }),
   role: text('role').notNull(), // 'user' | 'model'
   content: text('content').notNull(),
   contextUsed: text('context_used'), // JSON string of RAG context items (nullable)

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { thoughts, chatMessages } from '@/db/schema';
+import { thoughts, chatMessages, chatSessions } from '@/db/schema';
 import { getSessionUser } from '@/lib/auth';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getEmbedding, generateChatResponse } from '@/lib/groq';
 import crypto from 'crypto';
 
@@ -28,18 +28,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'unauthorized', message: 'Unauthorized access' }, { status: 401 });
     }
 
-    const { message, history = [] } = await request.json();
+    const { message, history = [], sessionId: requestedSessionId } = await request.json();
 
     if (!message || message.trim() === '') {
       return NextResponse.json({ error: 'bad_request', message: 'Message is required' }, { status: 400 });
     }
 
-    console.log(`Processing chat query for user ${user.email}: "${message}"`);
+    let sessionId = requestedSessionId;
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      const title = message.trim().slice(0, 30) + (message.trim().length > 30 ? '...' : '');
+      await db.insert(chatSessions).values({
+        id: sessionId,
+        userId: user.id,
+        title,
+        isPinned: 0,
+        createdAt: Date.now(),
+      });
+      console.log(`Created auto chat session ${sessionId} with title: "${title}"`);
+    }
+
+    console.log(`Processing chat query for user ${user.email} in session ${sessionId}: "${message}"`);
 
     // 1. Save the user's message to the database
     await db.insert(chatMessages).values({
       id: crypto.randomUUID(),
       userId: user.id,
+      sessionId,
       role: 'user',
       content: message.trim(),
       contextUsed: null,
@@ -98,6 +113,7 @@ export async function POST(request: Request) {
     await db.insert(chatMessages).values({
       id: crypto.randomUUID(),
       userId: user.id,
+      sessionId,
       role: 'model',
       content: responseText,
       contextUsed: JSON.stringify(contextUsed),
@@ -107,6 +123,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       text: responseText,
       contextUsed,
+      sessionId,
     });
   } catch (error: any) {
     console.error('Companion Chat error:', error);

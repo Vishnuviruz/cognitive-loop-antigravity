@@ -2,6 +2,7 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth';
 import Sidebar from '@/components/Sidebar';
+import FloatingCompanion from '@/components/FloatingCompanion';
 
 export default async function DashboardLayout({
   children,
@@ -30,6 +31,9 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
+
+      {/* Global Thinking Companion Widget */}
+      <FloatingCompanion />
     </div>
   );
 }
